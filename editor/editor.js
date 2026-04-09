@@ -1,5 +1,5 @@
 /* =============================================================
-   Kora Visual Editor — editor.js  (v3: with preview panel)
+   Kora Visual Editor — editor.js  (v4: with assets panel)
 ============================================================= */
 'use strict';
 
@@ -7,21 +7,19 @@
 // State
 // ------------------------------------------------------------------
 const state = {
-  entities:  [],
-  selected:  null,
-  tool:      'select',
-  cam:       { x: 0, y: 0, zoom: 1 },
-  drag:      null,
-  idSeq:     1,
-  meta:      { name: 'Untitled', version: 1, logicalW: 360, logicalH: 640 },
-  dirty:     false,
+  entities: [],
+  selected: null,
+  tool:     'select',
+  cam:      { x: 0, y: 0, zoom: 1 },
+  drag:     null,
+  idSeq:    1,
+  meta:     { name: 'Untitled', version: 1, logicalW: 360, logicalH: 640 },
+  dirty:    false,
 };
-
-const LOGICAL_W = 360;
-const LOGICAL_H = 640;
+const LOGICAL_W = 360, LOGICAL_H = 640;
 
 // ------------------------------------------------------------------
-// DOM refs
+// DOM
 // ------------------------------------------------------------------
 const canvas      = document.getElementById('scene-canvas');
 const ctx         = canvas.getContext('2d');
@@ -37,8 +35,7 @@ const zoomEl      = document.getElementById('vp-zoom');
 let toastTimer;
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.hidden = false;
+  t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
 }
@@ -57,13 +54,44 @@ function log(msg, type = 'info') {
 document.getElementById('btn-clear-console').addEventListener('click', () => { consoleBody.innerHTML = ''; });
 
 // ------------------------------------------------------------------
-// Preview Panel init
+// Preview Panel
 // ------------------------------------------------------------------
 const previewPanel = new PreviewPanel({
   container: document.getElementById('preview-container'),
   getScene: () => ({ entities: state.entities, meta: state.meta }),
   onLog: log,
 });
+
+// ------------------------------------------------------------------
+// Assets Panel
+// ------------------------------------------------------------------
+const assetsPanel = new AssetsPanel({
+  container: document.getElementById('assets-container'),
+  onLog: log,
+  onSpawn: ({ asset, worldX, worldY }) => {
+    // Map asset type to entity type
+    const TYPE_MAP = { image: 'sprite', audio: 'audio', tilemap: 'tilemap', script: 'custom', other: 'custom' };
+    const entityType = TYPE_MAP[asset.type] || 'custom';
+    const baseName = asset.name.replace(/\.[^.]+$/, '');
+    const e = createEntity(baseName, entityType);
+    e.x = worldX; e.y = worldY;
+    // Store asset reference
+    e.assetId   = asset.id;
+    e.assetName = asset.name;
+    if (asset.type === 'image') e.spriteUrl = asset.url;
+    state.entities.push(e);
+    selectEntity(e.id);
+    buildHierarchy();
+    markDirty();
+    // Switch back to scene tab so user sees the entity
+    switchTab('scene');
+    document.querySelectorAll('.tb-btn[data-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-tab="scene"]').classList.add('active');
+  },
+});
+
+// Register canvas as drop target
+assetsPanel.registerCanvasDrop(canvas, screenToWorld);
 
 // ------------------------------------------------------------------
 // Canvas sizing
@@ -96,7 +124,7 @@ function screenToWorld(sx, sy) {
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
-  const [ox, oy] = worldToScreen(-LOGICAL_W / 2, -LOGICAL_H / 2);
+  const [ox, oy] = worldToScreen(-LOGICAL_W/2, -LOGICAL_H/2);
   const pw = LOGICAL_W * state.cam.zoom, ph = LOGICAL_H * state.cam.zoom;
   ctx.save();
   ctx.strokeStyle = 'rgba(0,229,160,0.25)'; ctx.lineWidth = 1;
@@ -111,19 +139,38 @@ function render() {
 
 function drawGrid() {
   const STEP = 32 * state.cam.zoom;
-  const offX = (canvas.width  / 2 + state.cam.x * state.cam.zoom) % STEP;
-  const offY = (canvas.height / 2 + state.cam.y * state.cam.zoom) % STEP;
+  const offX = (canvas.width/2  + state.cam.x * state.cam.zoom) % STEP;
+  const offY = (canvas.height/2 + state.cam.y * state.cam.zoom) % STEP;
   ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
   for (let x = offX; x < canvas.width;  x += STEP) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
   for (let y = offY; y < canvas.height; y += STEP) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y);  ctx.stroke(); }
   ctx.restore();
 }
 
+const _imgCache = {};
 function drawEntity(e) {
   const [sx, sy] = worldToScreen(e.x, e.y);
   const sw = e.w * state.cam.zoom, sh = e.h * state.cam.zoom;
   ctx.save(); ctx.translate(sx, sy); ctx.rotate(e.rotation * Math.PI / 180);
-  ctx.fillStyle = e.color + '99'; ctx.fillRect(-sw/2,-sh/2,sw,sh);
+
+  // Draw sprite thumbnail if available
+  if (e.spriteUrl) {
+    if (!_imgCache[e.spriteUrl]) {
+      const img = new Image();
+      img.src = e.spriteUrl;
+      img.onload = () => render();
+      _imgCache[e.spriteUrl] = img;
+    }
+    const img = _imgCache[e.spriteUrl];
+    if (img.complete) {
+      ctx.drawImage(img, -sw/2, -sh/2, sw, sh);
+    } else {
+      ctx.fillStyle = e.color + '99'; ctx.fillRect(-sw/2,-sh/2,sw,sh);
+    }
+  } else {
+    ctx.fillStyle = e.color + '99'; ctx.fillRect(-sw/2,-sh/2,sw,sh);
+  }
+
   ctx.strokeStyle = e.color; ctx.lineWidth = 1.5; ctx.strokeRect(-sw/2,-sh/2,sw,sh);
   ctx.fillStyle = '#fff'; ctx.font = `${Math.max(9, 11*state.cam.zoom)}px Inter,sans-serif`;
   ctx.textAlign = 'center'; ctx.fillText(e.name, 0, -sh/2-4);
@@ -191,11 +238,13 @@ function clearDirty() { state.dirty = false; render(); }
 // ------------------------------------------------------------------
 function buildInspector(e) {
   if (!e) { inspectorEl.innerHTML='<p class="inspector-empty">Selecione uma entidade</p>'; return; }
+  const assetBadge = e.assetName ? `<div class="prop-row"><span class="prop-label">Asset</span><span style="font-size:11px;color:var(--color-primary)">${e.assetName}</span></div>` : '';
   inspectorEl.innerHTML = `
     <div class="inspector-section">
       <div class="inspector-section-title">Identidade</div>
       <div class="prop-row"><span class="prop-label">Nome</span><input class="prop-input" data-prop="name" value="${e.name}"></div>
       <div class="prop-row"><span class="prop-label">Tipo</span><input class="prop-input" value="${e.type}" disabled></div>
+      ${assetBadge}
     </div>
     <div class="inspector-section">
       <div class="inspector-section-title">Transform</div>
@@ -238,20 +287,19 @@ function buildInspector(e) {
   });
   inspectorEl.querySelector('#btn-delete')?.addEventListener('click', () => {
     const idx=state.entities.findIndex(en=>en.id===e.id);
-    if (idx>=0) state.entities.splice(idx,1);
+    if(idx>=0) state.entities.splice(idx,1);
     deselectAll(); markDirty(); log(`Excluído: ${e.name}`,'warn');
   });
 }
 
 // ------------------------------------------------------------------
-// Serialization actions
+// Serialization
 // ------------------------------------------------------------------
 function actionNew() {
   if (state.dirty && !confirm('Há alterações não salvas. Criar nova cena?')) return;
   state.entities=[]; state.selected=null; state.idSeq=1;
   state.meta={ name:'Untitled', version:1, logicalW:360, logicalH:640 };
-  buildHierarchy(); deselectAll(); clearDirty();
-  log('Nova cena criada.','ok');
+  buildHierarchy(); deselectAll(); clearDirty(); log('Nova cena criada.','ok');
 }
 function actionSave() {
   const doc = Serializer.sceneToJSON(state.entities, state.meta);
@@ -264,11 +312,11 @@ async function actionOpen() {
     const doc = await Serializer.openSceneFile();
     const { entities, meta } = Serializer.jsonToScene(doc, nextId);
     if (state.dirty && !confirm('Há alterações não salvas. Abrir mesmo assim?')) return;
-    state.entities = entities; state.meta = meta; state.selected = null;
+    state.entities=entities; state.meta=meta; state.selected=null;
     buildHierarchy(); deselectAll(); clearDirty();
     log(`Cena carregada: ${meta.name} (${entities.length} entidades)`,'ok');
     showToast(`📂 ${meta.name} carregado`);
-  } catch (err) { log(err.message, 'error'); }
+  } catch(err) { log(err.message,'error'); }
 }
 function actionExportKScript() {
   const src = Serializer.sceneToKScript(state.entities, state.meta.name);
@@ -281,16 +329,12 @@ document.getElementById('btn-new').addEventListener('click', actionNew);
 document.getElementById('btn-save').addEventListener('click', actionSave);
 document.getElementById('btn-open').addEventListener('click', actionOpen);
 document.getElementById('btn-export-ks').addEventListener('click', actionExportKScript);
-
-// Play button → switch to preview tab AND run
 document.getElementById('btn-play').addEventListener('click', () => {
-  // Switch to preview tab
-  document.querySelectorAll('.tb-btn[data-tab]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tb-btn[data-tab]').forEach(b=>b.classList.remove('active'));
   document.querySelector('[data-tab="preview"]').classList.add('active');
   switchTab('preview');
   setTimeout(() => previewPanel.play(), 80);
 });
-
 document.getElementById('btn-export').addEventListener('click', () => {
   log('Gerando APK... requer Android SDK + gomobile','warn');
   setTimeout(()=>log('Execute: ./android/build.sh debug','info'),500);
@@ -300,14 +344,15 @@ document.getElementById('btn-export').addEventListener('click', () => {
 // Tab system
 // ------------------------------------------------------------------
 function switchTab(tab) {
-  document.getElementById('tab-scene').style.display   = tab === 'scene'   ? 'flex' : 'none';
-  document.getElementById('tab-preview').style.display = tab === 'preview' ? 'flex' : 'none';
+  ['scene','preview','assets','code'].forEach(t => {
+    const el = document.getElementById(`tab-${t}`);
+    if (el) el.style.display = t === tab ? 'flex' : 'none';
+  });
   if (tab === 'scene') resizeCanvas();
 }
-
 document.querySelectorAll('.tb-btn[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tb-btn[data-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tb-btn[data-tab]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     switchTab(btn.dataset.tab);
   });
@@ -390,7 +435,7 @@ document.getElementById('new-entity-name').addEventListener('keydown',ev=>{ if(e
 // ------------------------------------------------------------------
 window.addEventListener('keydown', ev => {
   const inInput = ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA'||ev.target.tagName==='SELECT';
-  if (ev.ctrlKey || ev.metaKey) {
+  if (ev.ctrlKey||ev.metaKey) {
     if (ev.key==='s') { ev.preventDefault(); actionSave(); return; }
     if (ev.key==='o') { ev.preventDefault(); actionOpen(); return; }
     if (ev.key==='n') { ev.preventDefault(); actionNew();  return; }
@@ -404,31 +449,27 @@ window.addEventListener('keydown', ev => {
     case 'Delete': case 'Backspace':
       if (state.selected) {
         const e=getEntity(state.selected), idx=state.entities.findIndex(en=>en.id===state.selected);
-        if (idx>=0){ state.entities.splice(idx,1); deselectAll(); markDirty(); log(`Excluído: ${e?.name}`,'warn'); }
+        if(idx>=0){ state.entities.splice(idx,1); deselectAll(); markDirty(); log(`Excluído: ${e?.name}`,'warn'); }
       }
       break;
     case 'F5': ev.preventDefault(); document.getElementById('btn-play').click(); break;
   }
 });
-
-window.addEventListener('beforeunload', ev => { if (state.dirty) { ev.preventDefault(); ev.returnValue=''; } });
+window.addEventListener('beforeunload', ev => { if(state.dirty){ ev.preventDefault(); ev.returnValue=''; } });
 
 // ------------------------------------------------------------------
-// Seed scene
+// Seed
 // ------------------------------------------------------------------
 function seedScene() {
-  const player=createEntity('Player','sprite');   player.x=0;  player.y=60;  player.color='#00e5a0';
-  const ground=createEntity('Ground','tilemap');  ground.x=0;  ground.y=240; ground.w=340; ground.h=24; ground.color='#388bfd';
-  const cam=createEntity('MainCamera','camera');  cam.x=0; cam.y=0; cam.w=32; cam.h=32; cam.color='#e3b341';
+  const player=createEntity('Player','sprite');  player.x=0;  player.y=60;  player.color='#00e5a0';
+  const ground=createEntity('Ground','tilemap'); ground.x=0;  ground.y=240; ground.w=340; ground.h=24; ground.color='#388bfd';
+  const cam=createEntity('MainCamera','camera'); cam.x=0; cam.y=0; cam.w=32; cam.h=32; cam.color='#e3b341';
   state.entities.push(player,ground,cam);
   buildHierarchy(); log('Cena de exemplo carregada.','ok');
 }
 
-// ------------------------------------------------------------------
-// Init
-// ------------------------------------------------------------------
 resizeCanvas();
 state.cam.zoom=0.75;
 seedScene();
 render();
-log('Kora Editor v3 iniciado. F5 = Rodar Preview · Ctrl+S salvar · Ctrl+O abrir.','ok');
+log('Kora Editor v4 · F5=Preview · Ctrl+S=Salvar · Ctrl+O=Abrir · Aba Assets=Importar sprites.','ok');

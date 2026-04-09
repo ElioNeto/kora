@@ -11,7 +11,6 @@
 </head>
 <body>
 
-<!-- ======================================================= TOPBAR -->
 <header class="topbar">
   <div class="topbar-left">
     <svg class="logo" viewBox="0 0 32 32" fill="none" aria-label="Kora">
@@ -40,10 +39,7 @@
   </div>
 </header>
 
-<!-- ======================================================= MAIN -->
 <div class="workspace">
-
-  <!-- ---- HIERARCHY PANEL ---- -->
   <aside class="panel panel-hierarchy">
     <div class="panel-header">
       <span>Hierarquia</span>
@@ -52,15 +48,13 @@
     <ul class="hierarchy-list" id="hierarchy-list"></ul>
   </aside>
 
-  <!-- ---- MAIN CONTENT (scene canvas + preview) ---- -->
   <main class="viewport" id="main-content">
-
-    <!-- SCENE EDITOR TAB -->
+    <!-- SCENE TAB -->
     <div id="tab-scene" class="tab-pane active">
       <div class="viewport-toolbar">
         <button class="vp-tool active" data-tool="select" title="Selecionar (V)">&#9654;</button>
-        <button class="vp-tool" data-tool="move"   title="Mover (G)">&#10021;</button>
-        <button class="vp-tool" data-tool="scale"  title="Escala (S)">&#10529;</button>
+        <button class="vp-tool" data-tool="move"  title="Mover (G)">&#10021;</button>
+        <button class="vp-tool" data-tool="scale" title="Escala (S)">&#10529;</button>
         <div class="vp-sep"></div>
         <span class="vp-info" id="vp-coords">x: 0  y: 0</span>
         <span class="vp-info" id="vp-zoom">100%</span>
@@ -74,21 +68,28 @@
       <div id="preview-container" class="preview-container"></div>
     </div>
 
+    <!-- ASSETS TAB -->
+    <div id="tab-assets" class="tab-pane" style="display:none">
+      <div id="assets-container" class="assets-container"></div>
+    </div>
+
+    <!-- CODE TAB -->
+    <div id="tab-code" class="tab-pane" style="display:none">
+      <div class="code-placeholder">
+        <div style="font-size:28px">📜</div>
+        <div>Editor KScript — Issue #5</div>
+      </div>
+    </div>
   </main>
 
-  <!-- ---- INSPECTOR PANEL ---- -->
   <aside class="panel panel-inspector" id="inspector">
-    <div class="panel-header">
-      <span id="inspector-title">Inspetor</span>
-    </div>
+    <div class="panel-header"><span id="inspector-title">Inspetor</span></div>
     <div class="inspector-body" id="inspector-body">
       <p class="inspector-empty">Selecione uma entidade</p>
     </div>
   </aside>
-
 </div>
 
-<!-- ---- BOTTOM CONSOLE ---- -->
 <footer class="console" id="console">
   <div class="console-header">
     <span>Console</span>
@@ -97,17 +98,14 @@
   <div class="console-body" id="console-body"></div>
 </footer>
 
-<!-- ======================================================= MODALS -->
 <div class="modal-backdrop" id="modal-backdrop" hidden>
-  <div class="modal" id="modal-add-entity">
+  <div class="modal">
     <div class="modal-header">
       <span>Adicionar entidade</span>
       <button class="icon-btn modal-close">&times;</button>
     </div>
     <div class="modal-body">
-      <label>Nome
-        <input type="text" id="new-entity-name" placeholder="Player" autocomplete="off">
-      </label>
+      <label>Nome<input type="text" id="new-entity-name" placeholder="Player" autocomplete="off"></label>
       <label>Tipo
         <select id="new-entity-type">
           <option value="sprite">Sprite</option>
@@ -129,6 +127,7 @@
 
 <script src="serializer.js"></script>
 <script src="preview-panel.js"></script>
+<script src="assets-panel.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>
