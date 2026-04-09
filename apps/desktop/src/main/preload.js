@@ -5,7 +5,6 @@
 
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Expor APIs seguras ao contexto do renderer
 contextBridge.exposeInMainWorld('electronAPI', {
   // Sistema de arquivos
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
@@ -26,10 +25,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Save scene específico
   saveScene: (sceneData, fileName) => ipcRenderer.invoke('save-scene', { sceneData, fileName }),
 
+  // Preview / teste do jogo
+  openPreview: (htmlContent) => ipcRenderer.invoke('open-preview', htmlContent),
+
   // Build APK
   buildAPK: (config) => ipcRenderer.invoke('build-apk', config),
 
-  // Eventos do renderer (escuta canais vindos do main process)
+  // Janela
+  minimize: () => ipcRenderer.invoke('window-minimize'),
+  maximize: () => ipcRenderer.invoke('window-maximize'),
+  unmaximize: () => ipcRenderer.invoke('window-unmaximize'),
+  isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  close: () => ipcRenderer.invoke('window-close'),
+
+  // Eventos do main process → renderer
   on: (channel, func) => {
     const validChannels = [
       'menu:new-scene',
@@ -46,12 +55,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  // Informações do app
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => process.platform
 })
 
-// Expor versões de runtime
 contextBridge.exposeInMainWorld('electronVersion', {
   chrome: process.versions.chrome,
   node: process.versions.node,
