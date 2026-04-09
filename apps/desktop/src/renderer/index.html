@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline';style-src 'self' 'unsafe-inline'; img-src 'self' data: file://;media-src 'self' data: file://;">
+<title>Kora Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  :root {
+    --eui-topbar-h: 44px;
+    --eui-titlebar-h: 28px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    background: #0f1117;
+    color: #e6edf3;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+  }
+
+  /* Electron Titlebar */
+  #electron-titlebar {
+    height: var(--eui-titlebar-h);
+    background: #161b22;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: 1px solid #30363d;
+    -webkit-app-region: drag;
+  }
+
+  #electron-titlebar .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #electron-titlebar .logo {
+    width: 20px;
+    height: 20px;
+    fill: #00e5a0;
+  }
+
+  #electron-titlebar .app-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e6edf3;
+  }
+
+  #electron-titlebar .app-subtitle {
+    font-size: 11px;
+    font-weight: 400;
+    color: #7d8590;
+    margin-left: 4px;
+  }
+
+  #electron-titlebar .window-controls {
+    display: flex;
+    gap: 12px;
+    -webkit-app-region: no-drag;
+  }
+
+  #electron-titlebar .window-btn {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  #electron-titlebar .window-btn:hover {
+    opacity: 0.8;
+  }
+
+  #electron-titlebar .window-btn.minimize { background: #ffbd2e; }
+  #electron-titlebar .window-btn.maximize { background: #00ca4e; }
+  #electron-titlebar .window-btn.close { background: #ff6056; }
+
+  /* Window controls for Linux */
+  body[data-platform="linux"] #electron-titlebar .window-controls {
+    order: 2;
+  }
+
+  /* Menu Bar */
+  #menu-bar {
+    height: var(--eui-topbar-h);
+    background: #161b22;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: 1px solid #30363d;
+  }
+
+  #menu-bar .menu-branding {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #menu-bar .branding-dot {
+    width: 24px;
+    height: 24px;
+    fill: #00e5a0;
+  }
+
+  #menu-bar .menu-items {
+    display: flex;
+    gap: 4px;
+  }
+
+  #menu-bar .menu-item {
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #7d8590;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+
+  #menu-bar .menu-item:hover {
+    color: #e6edf3;
+    background: #21262d;
+  }
+
+  #menu-bar .menu-item.active {
+    color: #00e5a0;
+    background: rgba(0, 229, 160, 0.12);
+  }
+
+  #menu-bar .menu-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  #menu-bar .btn {
+    background: none;
+    border: 1px solid transparent;
+    color: #7d8590;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #menu-bar .btn:hover {
+    color: #e6edf3;
+    background: #21262d;
+  }
+
+  #menu-bar .btn-primary {
+    color: #00e5a0;
+    border-color: #00e5a0;
+  }
+
+  #menu-bar .btn-primary:hover {
+    background: rgba(0, 229, 160, 0.12);
+  }
+
+  /* Workspace */
+  #workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    overflow: hidden;
+  }
+
+  /* Panel */
+  .panel {
+    background: #161b22;
+    border-right: 1px solid #30363d;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel:last-child {
+    border-right: none;
+    border-left: 1px solid #30363d;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #7d8590;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #30363d;
+  }
+
+  .panel-icon-btn {
+    background: none;
+    border: none;
+    color: #7d8590;
+    cursor: pointer;
+    font-size: 16px;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+  }
+
+  .panel-icon-btn:hover {
+    color: #e6edf3;
+    background: #21262d;
+  }
+
+  /* Hierarchy */
+  .hierarchy-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .hierarchy-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    font-size: 12px;
+  }
+
+  .hierarchy-item:hover {
+    background: #21262d;
+  }
+
+  .hierarchy-item.selected {
+    background: rgba(0, 229, 160, 0.12);
+    border-left-color: #00e5a0;
+    color: #00e5a0;
+  }
+
+  .hierarchy-item .entity-icon {
+    font-size: 11px;
+    opacity: 0.6;
+  }
+
+  .hierarchy-item .entity-name {
+    flex: 1;
+  }
+
+  .hierarchy-item .entity-visibility {
+    opacity: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #484f58;
+    font-size: 11px;
+  }
+
+  .hierarchy-item.selected .entity-visibility {
+    opacity: 1;
+  }
+
+  .entity-visibility:hover {
+    color: #e3b341;
+  }
+
+  /* Main Content */
+  #main-content {
+    display: flex;
+    flex-direction: column;
+    background: #0f1117;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .viewport-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+  }
+
+  .vp-tool {
+    background: none;
+    border: 1px solid transparent;
+    color: #7d8590;
+    border-radius: 4px;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .vp-tool:hover {
+    background: #21262d;
+    color: #e6edf3;
+  }
+
+  .vp-tool.active {
+    background: rgba(0, 229, 160, 0.12);
+    color: #00e5a0;
+    border-color: #00e5a0;
+  }
+
+  .vp-sep {
+    width: 1px;
+    height: 18px;
+    background: #30363d;
+    margin: 0 4px;
+  }
+
+  .vp-info {
+    font-size: 11px;
+    color: #484f58;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Canvas */
+  #scene-canvas {
+    flex: 1;
+    display: block;
+    cursor: crosshair;
+    background: #0f1117;
+  }
+
+  /* Preview Container */
+  #preview-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0f1117;
+    padding: 20px;
+  }
+
+  #preview-container iframe {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    background: #0f1117;
+  }
+
+  /* Assets Panel */
+  #assets-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .assets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .asset-card {
+    position: relative;
+    background: #1c2128;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: grab;
+  }
+
+  .asset-card:hover {
+    border-color: #00e5a0;
+  }
+
+  .asset-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #21262d;
+  }
+
+  .asset-thumb img {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  .asset-label {
+    font-size: 10px;
+    color: #7d8590;
+    text-align: center;
+    word-break: break-all;
+    max-width: 100%;
+  }
+
+  .asset-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: #f85149;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-size: 12px;
+  }
+
+  .asset-card:hover .asset-delete {
+    opacity: 1;
+  }
+
+  .asset-delete:hover {
+    background: #d0362e;
+  }
+
+  /* Inspector */
+  .inspector-body {
+    padding: 12px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .inspector-section {
+    margin-bottom: 16px;
+  }
+
+  .inspector-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #7d8590;
+    margin-bottom: 8px;
+  }
+
+  .prop-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .prop-label {
+    font-size: 12px;
+    color: #7d8590;
+  }
+
+  .prop-input {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    width: 100%;
+  }
+
+  .prop-input:focus {
+    outline: none;
+    border-color: #00e5a0;
+  }
+
+  .prop-color {
+    width: 100%;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid #30363d;
+    cursor: pointer;
+    padding: 2px;
+  }
+
+  .prop-checkbox {
+    width: 16px;
+    height: 16px;
+  }
+
+  .script-area {
+    width: 100%;
+    min-height: 120px;
+    background: #0f1117;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    resize: vertical;
+  }
+
+  /* Console */
+  #console {
+    height: 140px;
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #7d8590;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #30363d;
+  }
+
+  #console-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: grid;
+    place-items: center;
+    z-index: 1000;
+  }
+
+  .modal {
+    background: #1c2128;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    width: 400px;
+    max-width: 90vw;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    font-weight: 600;
+    border-bottom: 1px solid #30363d;
+  }
+
+  .modal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-body label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #7d8590;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid #30363d;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1c2128;
+    border: 1px solid #30363d;
+    color: #00e5a0;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 12px;
+    z-index: 2000;
+  }
+
+  /* Empty states */
+  .inspector-empty {
+    color: #484f58;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 32px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 99px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+  }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    #workspace {
+      grid-template-columns: 240px 1fr 280px;
+    }
+  }
+</style>
+</head>
+<body>
+  <!-- Título do Electron -->
+  <div id="electron-titlebar">
+    <div class="titlebar-left">
+      <svg class="logo" viewBox="0 0 32 32">
+        <polygon points="6,26 16,6 26,26" fill="none" stroke="#00e5a0" stroke-width="2"/>
+        <line x1="10" y1="20" x2="22" y2="20" stroke="#00e5a0" stroke-width="2"/>
+      </svg>
+      <span class="app-title">Kora Editor</span>
+      <span class="app-subtitle">v0.1.0</span>
+    </div>
+    <div class="window-controls">
+      <button class="window-btn minimize" id="minimize-btn" title="Minimizar"></button>
+      <button class="window-btn maximize" id="maximize-btn" title="Maximizar/Restaurar"></button>
+      <button class="window-btn close" id="close-btn" title="Fechar"></button>
+    </div>
+  </div>
+
+  <!-- Menu -->
+  <div id="menu-bar">
+    <div class="menu-branding">
+      <svg class="branding-dot" viewBox="0 0 32 32">
+        <polygon points="6,26 16,6 26,26" fill="none" stroke="#00e5a0" stroke-width="2"/>
+        <line x1="10" y1="20" x2="22" y2="20" stroke="#00e5a0" stroke-width="2"/>
+      </svg>
+      <span>Kora Editor</span>
+    </div>
+    <div class="menu-items">
+      <div class="menu-item" data-action="file">Arquivo</div>
+      <div class="menu-item" data-action="edit">Editar</div>
+      <div class="menu-item" data-action="view">Exibir</div>
+      <div class="menu-item" data-action="help">Ajuda</div>
+    </div>
+    <div class="menu-actions">
+      <button class="btn" id="btn-new" title="Nova cena (Ctrl+N)">+ Nova</button>
+      <button class="btn" id="btn-open" title="Abrir (Ctrl+O)">Abrir</button>
+      <button class="btn" id="btn-save" title="Salvar (Ctrl+S)">Salvar</button>
+      <button class="btn" id="btn-export-ks" title="Exportar KScript">.ks</button>
+      <button class="btn btn-primary" id="btn-export-apk" title="Exportar APK">APK</button>
+    </div>
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace">
+    <!-- Hierarquia -->
+    <aside class="panel panel-hierarchy">
+      <div class="panel-header">
+        <span>Hierarquia</span>
+        <button class="panel-icon-btn" id="btn-add-entity" title="Adicionar entidade">+</button>
+      </div>
+      <ul class="hierarchy-list" id="hierarchy-list"></ul>
+    </aside>
+
+    <!-- Conteúdo Principal -->
+    <main id="main-content">
+      <!-- Scene Tab -->
+      <div id="tab-scene" class="tab-pane">
+        <div class="viewport-toolbar">
+          <button class="vp-tool active" data-tool="select" title="Selecionar (V)">⬡</button>
+          <button class="vp-tool" data-tool="move" title="Mover (G)">✱</button>
+          <button class="vp-tool" data-tool="scale" title="Escala (S)">⟡</button>
+          <div class="vp-sep"></div>
+          <span class="vp-info" id="vp-coords">x: 0  y: 0</span>
+          <span class="vp-info" id="vp-zoom">100%</span>
+          <button class="vp-tool" id="btn-zoom-fit" title="Encaistrar">⎕</button>
+        </div>
+        <canvas id="scene-canvas"></canvas>
+      </div>
+
+      <!-- Preview Tab -->
+      <div id="tab-preview" class="tab-pane" style="display: none;">
+        <div id="preview-container"></div>
+      </div>
+
+      <!-- Assets Tab -->
+      <div id="tab-assets" class="tab-pane" style="display: none;">
+        <div class="assets-toolbar" style="
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 8px;
+          background: #161b22;
+          border-bottom: 1px solid #30363d;
+        ">
+          <button class="btn" id="btn-import" title="Importar arquivos">+ Importar</button>
+          <input type="file" id="file-input" multiple accept="image/*,audio/*,.ts,.json" style="display: none;">
+          <span class="vp-info" id="assets-count">0 assets</span>
+        </div>
+        <div class="assets-grid" id="assets-grid"></div>
+      </div>
+    </main>
+
+    <!-- Inspector -->
+    <aside class="panel panel-inspector">
+      <div class="panel-header">
+        <span id="inspector-title">Inspetor</span>
+      </div>
+      <div class="inspector-body" id="inspector-body">
+        <p class="inspector-empty">Selecione uma entidade</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Console -->
+  <footer id="console">
+    <div id="console-header">
+      <span>Console</span>
+      <button class="btn" id="btn-clear-console" style="background: none; border: none; color: #7d8590; cursor: pointer; padding: 2px;">Limpar</button>
+    </div>
+    <div id="console-body"></div>
+  </footer>
+
+  <!-- Modal Adicionar Entidade -->
+  <div class="modal-backdrop" id="modal-backdrop" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <span>Adicionar Entidade</span>
+        <button class="panel-icon-btn" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label>
+          <span>Nome</span>
+          <input type="text" id="new-entity-name" placeholder="Player" style="
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #e6edf3;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            width: 100%;
+          ">
+        </label>
+        <label>
+          <span>Tipo</span>
+          <select id="new-entity-type" style="
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #e6edf3;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            width: 100%;
+          ">
+            <option value="sprite">Sprite</option>
+            <option value="tilemap">Tilemap</option>
+            <option value="camera">Camera</option>
+            <option value="audio">AudioEmitter</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="modal-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" style="display: none;">Notificação</div>
+
+  <!-- Editor Scripts (do código existente) -->
+  <script src="../../editor/serializer.js"></script>
+  <script src="../../editor/assets-panel.js"></script>
+  <script src="../../editor/preview-panel.js"></script>
+
+  <script>
+    // Electron API do preload
+    window.app = window.electronAPI || {}
+
+    // Console
+    const consoleBody = document.getElementById('console-body')
+    function log(msg, type = 'info') {
+      const line = document.createElement('div')
+      line.className = `log-${type}`
+      const ts = new Date().toLocaleTimeString('pt-BR', { hour12: false })
+      line.textContent = `[${ts}] ${msg}`
+      consoleBody.appendChild(line)
+      consoleBody.scrollTop = consoleBody.scrollHeight
+    }
+
+    document.getElementById('btn-clear-console').addEventListener('click', () => {
+      consoleBody.innerHTML = ''
+    })
+
+    // Menus
+    document.querySelectorAll('.menu-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        const action = e.target.dataset.action
+        switch (action) {
+          case 'file':
+            showToast('Arquivo: Nova, Abrir, Salvar, Exportar')
+            break
+          case 'edit':
+            showToast('Editar: Undo, Redo, Cut, Copy, Paste')
+            break
+          case 'view':
+            showToast('Exibir: Zoom In/Out, Reset, DevTools')
+            break
+          case 'help':
+            showToast('Ajuda: Documentação, Reportar Problema, Sobre')
+            break
+        }
+      })
+    })
+
+    // Toolbar buttons
+    document.getElementById('btn-new').addEventListener('click', () => {
+      window.app.on('menu:new-scene', () => {
+        if (state.dirty && !confirm('Há alterações não salvas?')) return
+        state.entities = []
+        state.selected = null
+        log('Nova cena criada.')
+        render()
+      })
+    })
+
+    document.getElementById('btn-open').addEventListener('click', async () => {
+      const filePath = await window.app.selectFile({
+        filters: [{ name: 'Cenas Kora', extensions: ['kora.json'] }]
+      })
+      if (filePath) {
+        const { content, error } = await window.app.readFile(filePath)
+        if (error) {
+          log(`Erro ao abrir: ${error}`, 'error')
+          return
+        }
+        try {
+          const data = JSON.parse(content)
+          const { entities, meta } = Serializer.jsonToScene(data, nextId)
+          state.entities = entities
+          state.meta = meta
+          buildHierarchy()
+          deselectAll()
+          log(`Cena carregada: ${meta.name}`)
+          showToast('✅ Cena carregada')
+        } catch (err) {
+          log(`Erro parse JSON: ${err.message}`, 'error')
+        }
+      }
+    })
+
+    document.getElementById('btn-save').addEventListener('click', async (e) => {
+      const saveAs = e.shiftKey
+      const filePath = await window.app.saveScene(
+        Serializer.sceneToJSON(state.entities, state.meta),
+        `${state.meta.name || 'cena'}.kora.json`,
+        saveAs
+      )
+      if (filePath) {
+        state.dirty = false
+        log(`Cena salva: ${filePath}`)
+        showToast('✅ Salvou!')
+      }
+    })
+
+    document.getElementById('btn-export-ks').addEventListener('click', () => {
+      const src = Serializer.sceneToKScript(state.entities, state.meta.name)
+      window.app.selectFile({
+        filters: [{ name: 'KScript', extensions: ['ks'] }],
+        defaultPath: `${state.meta.name || 'game'}.ks`
+      }).then(async (filePath) => {
+        if (filePath) {
+          await window.app.writeFile(filePath, src)
+          log(`KScript exportado: ${filePath}`)
+          showToast('📄 KScript exportado')
+        }
+      })
+    })
+
+    document.getElementById('btn-export-apk').addEventListener('click', () => {
+      // Placeholder para exportar APK
+      log('A exportação APK será integrada com o build system.', 'warn')
+      showToast('ℹ️ Build APK em breve')
+    })
+
+    // Window controls
+    document.getElementById('minimize-btn').addEventListener('click', () => {
+      window.electronAPI.minimize()
+    })
+
+    document.getElementById('maximize-btn').addEventListener('click', async () => {
+      const isMaximized = await window.electronAPI.isMaximized()
+      if (isMaximized) {
+        await window.electronAPI.unmaximize()
+      } else {
+        await window.electronAPI.maximize()
+      }
+    })
+
+    document.getElementById('close-btn').addEventListener('click', () => {
+      window.close()
+    })
+
+    // Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast')
+      toast.textContent = msg
+      toast.style.display = 'block'
+      setTimeout(() => {
+        toast.style.display = 'none'
+      }, 2200)
+    }
+
+    // Modal
+    const backdrop = document.getElementById('modal-backdrop')
+    document.getElementById('btn-add-entity').addEventListener('click', () => {
+      backdrop.style.display = 'grid'
+      document.getElementById('new-entity-name').focus()
+    })
+
+    document.getElementById('modal-close').addEventListener('click', () => {
+      backdrop.style.display = 'none'
+    })
+
+    document.getElementById('modal-cancel').addEventListener('click', () => {
+      backdrop.style.display = 'none'
+    })
+
+    document.getElementById('modal-confirm').addEventListener('click', () => {
+      const name = document.getElementById('new-entity-name').value.trim() || 'Entity'
+      const type = document.getElementById('new-entity-type').value
+      const e = createEntity(name, type)
+      state.entities.push(e)
+      selectEntity(e.id)
+      buildHierarchy()
+      backdrop.style.display = 'none'
+      document.getElementById('new-entity-name').value = ''
+      state.dirty = true
+      render()
+      log(`Adicionado: ${name} (${type})`)
+    })
+
+    document.querySelector('.modal-backdrop').addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-backdrop')) {
+        backdrop.style.display = 'none'
+      }
+    })
+
+    document.getElementById('new-entity-name').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('modal-confirm').click()
+      }
+    })
+  </script>
+
+  <!-- Script principal (do editor.js, adaptado para Electron) -->
+  <script>
+    // State
+    const state = {
+      entities: [],
+      selected: null,
+      tool: 'select',
+      cam: { x: 0, y: 0, zoom: 1 },
+      drag: null,
+      idSeq: 1,
+      meta: { name: 'Untitled', version: 1, logicalW: 360, logicalH: 640 },
+      dirty: false
+    }
+    const LOGICAL_W = 360, LOGICAL_H = 640
+
+    // DOM
+    const canvas = document.getElementById('scene-canvas')
+    const ctx = canvas.getContext('2d')
+    const hierarchyEl = document.getElementById('hierarchy-list')
+    const inspectorEl = document.getElementById('inspector-body')
+    const coordsEl = document.getElementById('vp-coords')
+    const zoomEl = document.getElementById('vp-zoom')
+
+    // Assets Panel setup
+    const assetsPanelContainer = document.getElementById('assets-container')
+
+    // Asset management
+    const assets = new Map()
+    let nextAssetId = 1
+
+    document.getElementById('btn-import').addEventListener('click', async () => {
+      const filePaths = await window.app.selectFile({
+        filters: [{ name: 'All', extensions: ['*'] }],
+        properties: ['openFile', 'multiSelections']
+      })
+      if (filePaths) {
+        for (const filePath of filePaths) {
+          await loadAsset(filePath)
+        }
+        renderAssets()
+        log(`${filePaths.length} asset(s) importados`)
+      }
+    })
+
+    async function loadAsset(filePath) {
+      const fileName = filePath.split(/[\\/]/).pop()
+      const ext = fileName.split('.').pop().toLowerCase()
+      const id = `asset_${Date.now()}_${nextAssetId++}`
+
+      // Carregar como dataURL para imagens
+      if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'webp') {
+        const { content, error } = await window.app.readFile(filePath)
+        if (error) return
+
+        const url = URL.createObjectURL(
+          new Blob([new Uint8Array(content.split(',').map(c => parseInt(c, 16)))], { type: 'image/' + ext })
+        )
+        assets.set(id, { id, url, fileName, ext, type: 'image' })
+      } else {
+        // Para outros tipos
+        assets.set(id, { id, fileName, ext, type: 'other' })
+      }
+    }
+
+    function renderAssets() {
+      const grid = document.getElementById('assets-grid')
+      grid.innerHTML = ''
+      document.getElementById('assets-count').textContent = `${assets.size} assets`
+
+      assets.forEach(asset => {
+        const card = document.createElement('div')
+        card.className = 'asset-card'
+        card.draggable = true
+        card.dataset.id = asset.id
+        card.title = `${asset.fileName}\nArraste para a cena`
+
+        const thumb = document.createElement('div')
+        thumb.className = 'asset-thumb'
+
+        if (asset.type === 'image') {
+          const img = document.createElement('img')
+          img.src = asset.url
+          thumb.appendChild(img)
+        } else {
+          thumb.textContent = '📄'
+          thumb.style.display = 'flex'
+          thumb.style.alignItems = 'center'
+          thumb.style.justifyContent = 'center'
+          thumb.style.fontSize = '28px'
+        }
+
+        const label = document.createElement('div')
+        label.className = 'asset-label'
+        label.textContent = asset.fileName.length > 14 ? asset.fileName.slice(0, 12) + '...' : asset.fileName
+
+        const deleteBtn = document.createElement('button')
+        deleteBtn.className = 'asset-delete'
+        deleteBtn.innerHTML = '×'
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation()
+          assets.delete(asset.id)
+          renderAssets()
+          log(`Asset removido: ${asset.fileName}`)
+        }
+
+        card.onclick = (e) => {
+          if (e.target !== deleteBtn) {
+            // Criar entidade ao clicar (não arrastando)
+            spawnEntityFromAsset(asset)
+          }
+        }
+
+        card.ondblclick = () => {
+          spawnEntityFromAsset(asset, 0, 0)
+        }
+
+        card.onmousedown = (e) => {
+          if (e.target !== deleteBtn) {
+            e.dataTransfer.setData('asset-id', asset.id)
+          }
+        }
+
+        card.appendChild(thumb)
+        card.appendChild(label)
+        card.appendChild(deleteBtn)
+        grid.appendChild(card)
+      })
+    }
+
+    function spawnEntityFromAsset(asset, x = null, y = null) {
+      const baseName = asset.fileName.replace(/\.[^.]+$/, '')
+      const type = asset.type === 'image' ? 'sprite' : 'custom'
+      const e = createEntity(baseName, type)
+      e.x = x ?? (Math.random() - 0.5) * 200
+      e.y = y ?? (Math.random() - 0.5) * 200
+      if (asset.type === 'image') {
+        e.assetUrl = asset.url
+      }
+      state.entities.push(e)
+      selectEntity(e.id)
+      buildHierarchy()
+      state.dirty = true
+      render()
+      log(`Entidade criada: ${baseName}`)
+    }
+
+    // Setup canvas as drop target for assets
+    canvas.addEventListener('dragover', (e) => {
+      e.dataTransfer.dropEffect = 'copy'
+    })
+
+    canvas.addEventListener('drop', async (e) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const x = ((e.clientX - rect.left) / canvas.width * LOGICAL_W * state.cam.zoom -
+                 LOGICAL_W * state.cam.x * state.cam.zoom) / state.cam.zoom
+      const y = ((e.clientY - rect.top - 36) / canvas.height * LOGICAL_H * state.cam.zoom -
+                 LOGICAL_H * state.cam.y * state.cam.zoom) / state.cam.zoom
+
+      const assetId = e.dataTransfer.getData('asset-id')
+      if (assetId && assets.has(assetId)) {
+        const asset = assets.get(assetId)
+        spawnEntityFromAsset(asset, x, y)
+      }
+    })
+
+    // Resize canvas
+    function resizeCanvas() {
+      const parent = canvas.parentElement
+      canvas.width = parent.clientWidth
+      canvas.height = parent.clientHeight - 36
+      render()
+    }
+    window.addEventListener('resize', resizeCanvas)
+
+    // World screen functions
+    function worldToScreen(wx, wy) {
+      const cx = canvas.width / 2 + state.cam.x * state.cam.zoom
+      const cy = canvas.height / 2 + state.cam.y * state.cam.zoom
+      return [cx + wx * state.cam.zoom, cy + wy * state.cam.zoom]
+    }
+
+    function screenToWorld(sx, sy) {
+      const cx = canvas.width / 2 + state.cam.x * state.cam.zoom
+      const cy = canvas.height / 2 + state.cam.y * state.cam.zoom
+      return [(sx - cx) / state.cam.zoom, (sy - cy) / state.cam.zoom]
+    }
+
+    // Render
+    function render() {
+      if (!canvas.parentElement) return
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      drawGrid()
+
+      // Draw scene bounds
+      const [ox, oy] = worldToScreen(-LOGICAL_W / 2, -LOGICAL_H / 2)
+      const pw = LOGICAL_W * state.cam.zoom, ph = LOGICAL_H * state.cam.zoom
+      ctx.save()
+      ctx.strokeStyle = 'rgba(0, 229, 160, 0.25)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(ox, oy, pw, ph)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+      ctx.fillRect(ox, oy, pw, ph)
+      ctx.restore()
+
+      // Draw entities
+      state.entities.forEach(e => {
+        if (e.visible) drawEntity(e)
+      })
+
+      // Selection
+      if (state.selected) {
+        const e = getEntity(state.selected)
+        if (e) drawSelection(e)
+      }
+
+      zoomEl.textContent = Math.round(state.cam.zoom * 100) + '%'
+      document.title = (state.dirty ? '● ' : '') + (state.meta.name || 'Untitled') + ' — Kora Editor'
+    }
+
+    function drawGrid() {
+      const STEP = 32 * state.cam.zoom
+      const offX = (canvas.width / 2 + state.cam.x * state.cam.zoom) % STEP
+      const offY = (canvas.height / 2 + state.cam.y * state.cam.zoom) % STEP
+
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)'
+      ctx.lineWidth = 1
+
+      for (let x = offX; x < canvas.width; x += STEP) {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, canvas.height)
+        ctx.stroke()
+      }
+
+      for (let y = offY; y < canvas.height; y += STEP) {
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(canvas.width, y)
+        ctx.stroke()
+      }
+
+      ctx.restore()
+    }
+
+    const _imgCache = {}
+    function drawEntity(e) {
+      const [sx, sy] = worldToScreen(e.x, e.y)
+      const sw = e.w * state.cam.zoom, sh = e.h * state.cam.zoom
+
+      ctx.save()
+      ctx.translate(sx, sy)
+      ctx.rotate(e.rotation * Math.PI / 180)
+
+      // Draw sprite if available
+      if (e.assetUrl) {
+        if (!_imgCache[e.assetUrl]) {
+          const img = new Image()
+          img.src = e.assetUrl
+          img.onload = () => render()
+          _imgCache[e.assetUrl] = img
+        }
+        const img = _imgCache[e.assetUrl]
+        if (img && img.complete) {
+          ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh)
+        } else {
+          ctx.fillStyle = e.color + '99'
+          ctx.fillRect(-sw / 2, -sh / 2, sw, sh)
+        }
+      } else {
+        ctx.fillStyle = e.color + '99'
+        ctx.fillRect(-sw / 2, -sh / 2, sw, sh)
+      }
+
+      ctx.strokeStyle = e.color
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(-sw / 2, -sh / 2, sw, sh)
+
+      ctx.fillStyle = '#fff'
+      ctx.font = `${Math.max(9, 11 * state.cam.zoom)}px Inter, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(e.name, 0, -sh / 2 - 4)
+      ctx.restore()
+    }
+
+    function drawSelection(e) {
+      const [sx, sy] = worldToScreen(e.x, e.y)
+      const sw = e.w * state.cam.zoom, sh = e.h * state.cam.zoom
+
+      ctx.save()
+      ctx.translate(sx, sy)
+      ctx.rotate(e.rotation * Math.PI / 180)
+
+      ctx.strokeStyle = '#00e5a0'
+      ctx.lineWidth = 2
+      ctx.setLineDash([4, 3])
+      ctx.strokeRect(-sw / 2 - 2, -sh / 2 - 2, sw + 4, sh + 4)
+      ctx.setLineDash([])
+      ctx.fillStyle = '#00e5a0'
+
+      for (const [hx, hy] of [
+        [-sw / 2 - 2, -sh / 2 - 2], [0, -sh / 2 - 2], [sw / 2 + 2, -sh / 2 - 2],
+        [sw / 2 + 2, 0], [sw / 2 + 2, sh / 2 + 2], [0, sh / 2 + 2],
+        [-sw / 2 - 2, sh / 2 + 2], [-sw / 2 - 2, 0]
+      ]) {
+        ctx.beginPath()
+        ctx.arc(hx, hy, 3.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      ctx.restore()
+    }
+
+    // Entities
+    function getEntity(id) { return state.entities.find(e => e.id === id) }
+    function nextId() { return state.idSeq++ }
+
+    function createEntity(name, type) {
+      return {
+        id: nextId(),
+        name,
+        type,
+        x: 0,
+        y: 0,
+        w: 48,
+        h: 48,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        color: randomColor(),
+        script: '',
+        assetUrl: null
+      }
+    }
+
+    function randomColor() {
+      return ['#00e5a0', '#388bfd', '#e3b341', '#f85149', '#bc8cff', '#ff7b72', '#79c0ff'][
+        Math.floor(Math.random() * 7)
+      ]
+    }
+
+    // Hierarchy
+    const ENTITY_ICONS = { sprite: '🟦', tilemap: '🔲', camera: '📷', audio: '🔊', custom: '⬡' }
+
+    function buildHierarchy() {
+      hierarchyEl.innerHTML = ''
+      state.entities.forEach(e => {
+        const li = document.createElement('li')
+        li.className = `hierarchy-item${e.id === state.selected ? ' selected' : ''}`
+        li.dataset.id = e.id
+        li.innerHTML = `
+          <span class="entity-icon">${ENTITY_ICONS[e.type] || '⬡'}</span>
+          <span class="entity-name">${e.name}</span>
+          <button class="entity-visibility">${e.visible ? '👁' : '🚫'}</button>
+        `
+
+        li.onclick = (ev) => {
+          if (ev.target.classList.contains('entity-visibility')) {
+            e.visible = !e.visible
+            state.dirty = true
+            buildHierarchy()
+            render()
+            return
+          }
+          selectEntity(e.id)
+        }
+
+        hierarchyEl.appendChild(li)
+      })
+    }
+
+    // Selection
+    function selectEntity(id) {
+      state.selected = id
+      buildHierarchy()
+      buildInspector(getEntity(id))
+      render()
+    }
+
+    function deselectAll() {
+      state.selected = null
+      buildHierarchy()
+      inspectorEl.innerHTML = '<p class="inspector-empty">Selecione uma entidade</p>'
+      render()
+    }
+
+    // Inspector
+    function buildInspector(e) {
+      if (!e) {
+        inspectorEl.innerHTML = '<p class="inspector-empty">Selecione uma entidade</p>'
+        return
+      }
+
+      const assetRow = e.assetUrl
+        ? `<div class="prop-row"><span class="prop-label">Asset</span><span style="font-size:11px;color:var(--color-primary)">${e.assetUrl.split('/').pop()}</span></div>`
+        : ''
+
+      inspectorEl.innerHTML = `
+        <div class="inspector-section">
+          <div class="inspector-section-title">Identidade</div>
+          <div class="prop-row">
+            <span class="prop-label">Nome</span>
+            <input class="prop-input" data-prop="name" value="${e.name}">
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Tipo</span>
+            <input class="prop-input" value="${e.type}" disabled>
+          </div>
+          ${assetRow}
+        </div>
+        <div class="inspector-section">
+          <div class="inspector-section-title">Transform</div>
+          <div class="prop-row">
+            <span class="prop-label">X</span>
+            <input class="prop-input" type="number" data-prop="x" value="${e.x}">
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Y</span>
+            <input class="prop-input" type="number" data-prop="y" value="${e.y}">
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Largura</span>
+            <input class="prop-input" type="number" data-prop="w" value="${e.w}">
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Altura</span>
+            <input class="prop-input" type="number" data-prop="h" value="${e.h}">
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Rotação</span>
+            <input class="prop-input" type="number" data-prop="rotation" value="${e.rotation}">
+          </div>
+        </div>
+        <div class="inspector-section">
+          <div class="inspector-section-title">Visual</div>
+          <div class="prop-row">
+            <span class="prop-label">Cor</span>
+            <input class="prop-color" type="color" data-prop="color" value="${e.color}">
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Visível</span>
+            <input class="prop-checkbox" type="checkbox" data-prop="visible" ${e.visible ? 'checked' : ''}>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Travado</span>
+            <input class="prop-checkbox" type="checkbox" data-prop="locked" ${e.locked ? 'checked' : ''}>
+          </div>
+        </div>
+        <div class="inspector-section">
+          <div class="inspector-section-title">Script KScript</div>
+          <textarea class="script-area" data-prop="script" placeholder="on Update(dt) {\n  // lógica aqui\n}">${e.script || ''}</textarea>
+        </div>
+        <div class="inspector-section">
+          <div class="inspector-section-title">Ações</div>
+          <div style="display: grid; gap: 6px;">
+            <button class="btn" id="btn-duplicate" style="width:100%">Duplicar</button>
+            <button class="btn" id="btn-delete" style="width:100%;color:#f85149;border-color:#f85149">Excluir</button>
+          </div>
+        </div>
+      `
+
+      inspectorEl.querySelectorAll('[data-prop]').forEach(input => {
+        input.addEventListener('input', () => {
+          const prop = input.dataset.prop
+          if (input.type === 'checkbox') e[prop] = input.checked
+          else if (input.type === 'number') e[prop] = parseFloat(input.value) || 0
+          else e[prop] = input.value
+
+          if (prop === 'name') buildHierarchy()
+          state.dirty = true
+          render()
+        })
+      })
+
+      inspectorEl.querySelector('#btn-duplicate')?.addEventListener('click', () => {
+        const copy = {
+          ...e,
+          id: nextId(),
+          name: e.name + '_copy',
+          x: e.x + 16,
+          y: e.y + 16
+        }
+        state.entities.push(copy)
+        selectEntity(copy.id)
+        buildHierarchy()
+        state.dirty = true
+        log(`Duplicado: ${copy.name}`)
+      })
+
+      inspectorEl.querySelector('#btn-delete')?.addEventListener('click', () => {
+        const idx = state.entities.findIndex(en => en.id === e.id)
+        if (idx >= 0) state.entities.splice(idx, 1)
+        deselectAll()
+        state.dirty = true
+        log(`Excluído: ${e.name}`)
+      })
+    }
+
+    // Keyboard
+    window.addEventListener('keydown', ev => {
+      const inInput = ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA'
+
+      if (ev.ctrlKey || ev.metaKey) {
+        if (ev.key === 's') {
+          ev.preventDefault()
+          document.getElementById('btn-save').click()
+          return
+        }
+        if (ev.key === 'o') {
+          ev.preventDefault()
+          document.getElementById('btn-open').click()
+          return
+        }
+        if (ev.key === 'n') {
+          ev.preventDefault()
+          document.getElementById('btn-new').click()
+          return
+        }
+      }
+
+      if (inInput) return
+
+      switch (ev.key) {
+        case 'v':
+        case 'V':
+          document.querySelector('[data-tool="select"]').click()
+          break
+        case 'g':
+        case 'G':
+          document.querySelector('[data-tool="move"]').click()
+          break
+        case 'f':
+        case 'F':
+          document.getElementById('btn-zoom-fit').click()
+          break
+        case 'Delete':
+        case 'Backspace':
+          if (state.selected) {
+            const e = getEntity(state.selected)
+            const idx = state.entities.findIndex(en => en.id === state.selected)
+            if (idx >= 0) {
+              state.entities.splice(idx, 1)
+              deselectAll()
+              state.dirty = true
+              log(`Excluído: ${e?.name}`)
+            }
+          }
+          break
+        case 'Escape':
+          deselectAll()
+          break
+      }
+    })
+
+    // Canvas interaction
+    canvas.addEventListener('mousemove', ev => {
+      const r = canvas.getBoundingClientRect()
+      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top + 36)
+      coordsEl.textContent = `x: ${Math.round(wx)}  y: ${Math.round(wy)}`
+
+      if (state.drag) {
+        const e = getEntity(state.drag.entityId)
+        if (e && !e.locked) {
+          e.x = Math.round(wx - state.drag.ox)
+          e.y = Math.round(wy - state.drag.oy)
+          state.dirty = true
+          render()
+        }
+      }
+    })
+
+    canvas.addEventListener('mousedown', ev => {
+      const r = canvas.getBoundingClientRect()
+      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top + 36)
+
+      const hit = [...state.entities].reverse().find(e => {
+        if (!e.visible || e.locked) return false
+        const hw = e.w / 2, hh = e.h / 2
+        return wx >= e.x - hw && wx <= e.x + hw && wy >= e.y - hh && wy <= e.y + hh
+      })
+
+      if (hit) {
+        selectEntity(hit.id)
+        if (state.tool === 'select' || state.tool === 'move') {
+          state.drag = { entityId: hit.id, ox: wx - hit.x, oy: wy - hit.y }
+        }
+      } else {
+        deselectAll()
+      }
+    })
+
+    canvas.addEventListener('mouseup', () => { state.drag = null })
+    canvas.addEventListener('mouseleave', () => { state.drag = null })
+
+    canvas.addEventListener('wheel', ev => {
+      ev.preventDefault()
+      state.cam.zoom = Math.min(4, Math.max(0.1, state.cam.zoom * (ev.deltaY > 0 ? 0.9 : 1.1)))
+      render()
+    }, { passive: false })
+
+    // Tools
+    document.querySelectorAll('.vp-tool[data-tool]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.vp-tool[data-tool]').forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+        state.tool = btn.dataset.tool
+      })
+    })
+
+    document.getElementById('btn-zoom-fit').addEventListener('click', () => {
+      state.cam = {
+        x: 0,
+        y: 0,
+        zoom: Math.min(canvas.width / LOGICAL_W, canvas.height / LOGICAL_H) * 0.85
+      }
+      render()
+    })
+
+    // Tab switching
+    // (Simplified for Electron - always show scene)
+    // In full version, could add tabs for assets, preview
+
+    // Seed scene
+    function seedScene() {
+      const player = createEntity('Player', 'sprite')
+      player.x = 0
+      player.y = 60
+      player.color = '#00e5a0'
+
+      const ground = createEntity('Ground', 'tilemap')
+      ground.x = 0
+      ground.y = 240
+      ground.w = 340
+      ground.h = 24
+      ground.color = '#388bfd'
+
+      const cam = createEntity('MainCamera', 'camera')
+      cam.x = 0
+      cam.y = 0
+      cam.w = 32
+      cam.h = 32
+      cam.color = '#e3b341'
+
+      state.entities.push(player, ground, cam)
+      buildHierarchy()
+      log('Cena de exemplo carregada.')
+    }
+
+    // Init
+    resizeCanvas()
+    state.cam.zoom = 0.75
+    seedScene()
+    render()
+    log('Kora Editor v0.1.0 — Desktop')
+  </script>
+
+  <script>
+    // Theme toggle
+    (function(){
+      const btn=document.querySelector('[data-theme-toggle]'),root=document.documentElement;
+      let dark=root.getAttribute('data-theme')!=='light';
+      function apply(){root.setAttribute('data-theme',dark?'dark':'light');}
+      window.addEventListener('DOMContentLoaded',()=>{apply();});
+    })();
+  </script>
+</body>
+</html>
