@@ -1,202 +1,388 @@
 # Kora Editor Desktop
 
-## 🎮 Engine de Jogos 2D para Android
+> O editor visual desktop oficial da Kora Engine - Criado com Electron
 
-Kora é uma engine de jogos 2D inspirada no GameMaker Studio, projetada especificamente para criar jogos nativos para Android. Utilizamos uma linguagem de script própria, o **KScript**, que é compilada para Go e depois para código nativo Android - sem VM, sem overhead.
+## 📱 Sobre
 
-## ✨ Características
+Kora Editor Desktop é o aplicativo desktop completo para criação de jogos com a engine Kora. Baseado no editor web original, oferece:
 
-### Editor Desktop
-- **Editor visual** - Crie cenas arrastando e soltando entidades
-- **Importação de assets** - PNG, JPG, WebP, OGG, WAV
-- **Preview em tempo real** - Teste sua cena instantaneamente
-- **Inspector completo** - Edite propriedades de entidades
-- **Hierarquia** - Gerencie suas entidades de forma organizada
-- **Console de debug** - Logs e mensagens em tempo real
+- ✅ **Acesso completo ao sistema de arquivos** - Abrir, salvar, importar assets
+- ✅ **Menus nativos** - File, Edit, View, Help com atalhos completos
+- ✅ **Preview integrado** - Teste cenas em tempo real com física
+- ✅ **Exportação APK** - Build direto para Android
+- ✅ **Persistência** - Assets salvos no IndexedDB entre sessões
+- ✅ **Offline** - Funciona sem internet
 
-### KScript - Nossa Linguagem
-- **Sintaxe TypeScript-like** - Familiar e poderosa
-- **Tipagem estática** - Erros detectados em tempo de compilação
-- **Async/await nativo** - Corrotinas para lógica não-blocking
-- **Compilação AOT** - Performance máxima, sem VM
+## 🎯 Funcionalidades
 
-```kscript
-object Player {
-  speed: float = 180
-  
-  update(dt: float) {
-    const move = Input.axisX()
-    this.x += move * this.speed * dt
-  }
-}
-```
+### Editor Visual
+- **Cena 2D** - Canvas com zoom, pan e grid
+- **Entidades** - Sprite, Tilemap, Camera, AudioEmitter, Custom
+- **Inspector** - Edite propriedades em tempo real
+- **Hierarquia** - Tree de entidades com visibilidade
+- **Console** - Logs e mensagens de debug
 
-### Export para Android
-- **APK nativo** - Compile para Android com um clique
-- **Sem WebView** - Runtime 100% nativo em Go
-- **Otimizado** - Código Go compilado para ARM64
+### Assets Management
+- **Importar** - PNG, JPG, WebP, GIF, OGG, WAV, MP3
+- **Drag & Drop** - Do sistema ou entre abas
+- **Thumbnail** - Preview de imagens no painel
+- **Delete** - Botão × flutuante nos cards
+- **Filtros** - Imagens, Áudio, Tilemaps
+- **Persistência** - IndexedDB (salva entre sessões)
 
-## 🚀 Quickstart
+### KScript
+- **Exportar** - Gera .ks executável
+- **Integração** - Compilador embutido
+- **Preview** - Roda cena localmente antes de exportar
+
+### Build APK
+- **Build Debug** - Rápido, sem assinatura
+- **Build Release** - Com keystore para produção
+- **Log** - Console de build integrado
+
+## 🚀 Instalação
 
 ### Pré-requisitos
 
 - **Node.js 18+**
-- **Go 1.22+**
-- **Android SDK** (para build APK)
+- **npm** ou **yarn**
+- **Go 1.22+** (para build APK)
 
-### Instalação
+### Desenvolvimento
 
 ```bash
 # Clone o repositório
 git clone https://github.com/koraengine/kora.git
-cd kora
+cd kora/apps/desktop
 
-# Instalare dependências
-cd apps/desktop
+# Instale dependências
 npm install
 
-# Inicie o editor
+# Inicie em modo desenvolvimento
 npm run dev
 ```
 
-### Criando seu Primeiro Jogo
-
-1. **Abra o Kora Editor Desktop**
-2. **Importe um sprite** (File → Import → Selecione PNG)
-3. **Arraste para a cena**
-4. **Adicione script KScript:**
-```kscript
-on Update(dt) {
-  this.x += 100 * dt
-}
-```
-5. **Exporte como APK**
-6. **Instale no Android**
-
-## 📚 Documentação
-
-- [Guia do Editor](./docs/EDITOR_GUIDE.md)
-- [Linguagem KScript](./docs/SCRIPT.md)
-- [API Reference](./docs/API_REFERENCE.md)
-- [Assets Guide](./docs/ASSETS_GUIDE.md)
-- [Desktop App](./docs/DESKTOP_APP.md)
-
-## 🏗️ Build
-
-### Development
+### Build
 
 ```bash
-# Editor desktop (Electron)
-cd apps/desktop
-npm install
-npm run dev
-
-# Compilador KScript
-cd compiler
-go build
-
-# Runtime
-go run main.go
-```
-
-### Release
-
-```bash
-# Build desktop app
-cd apps/desktop
+# Build para distribuição
 npm run build
 
-# Build APK (Android)
-# Requer ANDROID_HOME configurado
-./android/build.sh release
+# Platform-specific
+npm run build:win   # Windows (.exe, portable)
+npm run build:mac   # macOS (.dmg, .app)
+npm run build:linux # Linux (.AppImage, .deb)
 ```
 
-## 📊 Arquitetura
+Os artefatos são gerados em `dist-electron/`.
+
+## 📖 Uso
+
+### Criando uma Cena
+
+1. **Novo Projeto**: `File → New` ou `Ctrl+N`
+2. **Importar Assets**: Botão `+ Importar` ou arraste arquivos
+3. **Adicionar Entidade**: Arraste do Assets para o Canvas
+4. **Posicionar**: Clique e arraste no canvas
+5. **Editar**: Use o Inspector à direita
+6. **Salvar**: `Ctrl+S` (.kora.json)
+7. **Preview**: Pressione `F5` ou clique "Preview"
+8. **Exportar KScript**: Botão `.ks`
+
+### Atalhos
+
+| Tecla | Ação |
+|-------|------|
+| `Ctrl+N` | Nova cena |
+| `Ctrl+O` | Abrir cena |
+| `Ctrl+S` | Salvar cena |
+| `F5` | Preview |
+| `Delete` | Excluir entidade |
+| `V` | Tool: Select |
+| `G` | Tool: Move |
+| `F` | Zoom Fit |
+| `F12` | DevTools |
+
+### Menus
 
 ```
-┌─────────────────────────────────────────────────────┐
-│           Kora Editor Desktop (Electron)            │
-│  Scene Editor · Asset Management · Inspector        │
-└─────────────────────┬───────────────────────────────┘
-                      │ KScript (.ks)
-                      ▼
-┌─────────────────────────────────────────────────────┐
-│              KScript Compiler (Go)                  │
-│  Lexer · Parser · Type Checker · Go Emitter         │
-└─────────────────────┬───────────────────────────────┘
-                      │ Go generated code
-                      ▼
-┌─────────────────────────────────────────────────────┐
-│           Kora Runtime (Go + gomobile)              │
-│  Render · Input · Physics · Scene · Asset Loader    │
-└─────────────────────┬───────────────────────────────┘
-                      │ Native ARM64
-                      ▼
-              Android APK / AAB
+Arquivo
+├── Nova Cena (Ctrl+N)
+├── Abrir (Ctrl+O)
+├── Salvar (Ctrl+S)
+├── Salvar Como... (Ctrl+Shift+S)
+├── Exportar KScript (.ks)
+├── Exportar APK...
+└── Sair
+
+Editar
+├── Undo (Ctrl+Z)
+├── Redo (Ctrl+Y)
+├── Cut (Ctrl+X)
+├── Copy (Ctrl+C)
+├── Paste (Ctrl+V)
+└── Select All
+
+Exibir
+├── Zoom In (Ctrl+=)
+├── Zoom Out (Ctrl+-)
+├── Zoom Reset (Ctrl+0)
+└── Toggle DevTools (F12)
+
+Ajuda
+├── Documentação
+├── Reportar Problema
+└── Sobre Kora Editor
 ```
 
-## 🎯 Recursos
+## 🔧 APIs Electron
 
-| Feature | Desktop | Web | Status |
-|---------|---------|-----|--------|
-| Editor Visual | ✅ | ✅ | Done |
-| Asset Import | ✅ | ✅ | Done |
-| KScript Editor | ✅ | 🚧 | v1.0 |
-| Physics Preview | ✅ | ✅ | Done |
-| APK Export | ✅ | ❌ | Desktop only |
-| Offline Support | ✅ | ✅ | Done |
-| File System Access | ✅ | ❌ | Done |
-| Multi-window | 🔜 | ❌ | Roadmap |
+O aplicativo expõe APIs via `window.electronAPI`:
 
-## 🔧 Tecnologias
+### Sistema de Arquivos
 
-| Camada | Tecnologia |
-|--------|------------|
-| Editor Desktop | Electron 28 + Vite |
-| Scripting | KScript (custom, Go-compiled) |
-| Runtime Core | Go 1.22+ |
-| Export | gomobile + Android SDK |
-| Preview | HTML5 Canvas + Web Audio |
+```javascript
+// Abrir arquivo
+const filePaths = await window.electronAPI.selectFile({
+  filters: [{ name: 'Images', extensions: ['png', 'jpg'] }],
+  properties: ['openFile', 'multiSelections']
+})
 
-## 📝 Workflow
+// Salvar arquivo
+const savePath = await window.electronAPI.saveFile({
+  defaultPath: 'minha-cena.kora.json',
+  filters: [{ name: 'Kora Scenes', extensions: ['kora.json'] }]
+})
 
-1. **Desenvolver** no Kora Editor Desktop
-2. **Testar** no Preview integrado
-3. **Salvar** cena (.kora.json)
-4. **Exportar** KScript (.ks)
-5. **Compilar** para APK
-6. **Deploy** para Android
+// Ler conteúdo
+const { content, error } = await window.electronAPI.readFile(filePath)
 
-## 🤝 Contribuindo
+// Escrever conteúdo
+await window.electronAPI.writeFile(filePath, content)
 
-Veja [CONTRIBUTING.md](./docs/CONTRIBUTING.md) para como contribuir com o projeto.
+// Binary (base64)
+const { base64, error } = await window.electronAPI.readBinaryFile(filePath)
+```
 
-## 💡 Exemplo Rápido
+### Janelas
+
+```javascript
+// Minimizar
+await window.electronAPI.minimize()
+
+// Maximizar
+await window.electronAPI.maximize()
+
+// Restaurar
+await window.electronAPI.unmaximize()
+
+// Checar estado
+const isMaximized = await window.electronAPI.isMaximized()
+```
+
+### Eventos
+
+```javascript
+// Ouvir eventos
+const unsubscribe = window.electronAPI.on('menu:new-scene', () => {
+  console.log('Novo projeto solicitado')
+  // Handler
+})
+
+// Limpar listener
+unsubscribe()
+```
+
+### Apps Data
+
+```javascript
+// User data path
+const userData = await window.electronAPI.getAppPath('userData')
+
+// Logs path
+const logs = await window.electronAPI.getAppPath('logs')
+```
+
+## 🏗️ Arquitetura
+
+```
+apps/desktop/
+├── src/
+│   ├── main/                # Electron Main Process
+│   │   ├── index.js         # Janela, menu, IPC handlers
+│   │   └── preload.js       # Bridge seguro para renderer
+│   │
+│   └── renderer/            # Electron Renderer
+│       ├── index.html       # UI principal
+│       ├── assets/
+│       │   └── style.css    # Estilos do editor
+│       └── vite.config.js   # Config de build
+│
+├── package.json             # Dependencies & scripts
+├── vite.config.js           # Vite configuration
+└── README.md
+```
+
+### Processos
+
+**Main Process** (Node.js)
+- Gerencia janela principal
+- Menus nativos do SO
+- File dialogs do sistema
+- IPC communication
+- Build APK (via spawn)
+
+**Renderer Process** (Web)
+- UI do editor (via HTML/CSS/JS)
+- Canvas 2D rendering
+- Asset management
+- State management
+- Integração com Electron APIs
+
+### IPC (Inter-Process Communication)
+
+```javascript
+// Main → Renderer
+mainWindow.webContents.send('menu:new-scene', data)
+
+// Renderer → Main
+window.electronAPI.selectFile(options).then(path => { ... })
+```
+
+## 🔨 Build System
+
+### Scripts NPM
+
+| Comand | Descrição |
+|--------|-----------|
+| `npm run dev` | Inicia app em modo dev |
+| `npm run build` | Build all platforms |
+| `npm run build:win` | Build Windows |
+| `npm run build:mac` | Build macOS |
+| `npm run build:linux` | Build Linux |
+| `npm run preview` | Preview build |
+
+### Electron Builder Config
+
+```json
+{
+  "appId": "com.koraengine.editor",
+  "productName": "Kora Editor",
+  "files": ["dist/**/*", "src/main/**/*"],
+  "extraResources": [{
+    "from": "../editor",
+    "to": "editor",
+    "filter": ["**/*"]
+  }],
+  "win": {
+    "target": ["nsis", "portable"]
+  },
+  "mac": {
+    "target": ["dmg", "zip"],
+    "category": "public.app-category.games"
+  },
+  "linux": {
+    "target": ["AppImage", "deb"]
+  }
+}
+```
+
+## 📦 Pack Content
+
+O app inclui:
+
+- Editor completo (do `editor/` directory)
+- Assets panel com IndexedDB
+- Serializer (JSON ↔ KScript)
+- Preview panel com physics
+- Estilos CSS
+
+Todas as dependências são empacotadas no binário final.
+
+## 🐛 Troubleshooting
+
+### App não abre
 
 ```bash
-# 1. Abra o editor
-cd apps/desktop
+# Verificar Node
+node -v  # deve ser >= 18
+
+# Reinstalar
+rm -rf node_modules
 npm install
-npm run dev
 
-# 2. Importe assets
-# 3. Arraste sprites para cena
-# 4. Adicione KScript
-
-# 5. Exporte
-# File → Export APK
-# ou use terminal:
-go build -o bin/kora-compiler ./compiler
-bin/kora-compiler game.ks
-
-# 6. Build APK
-./android/build.sh release
+# Rebuild
+npm run build
 ```
+
+### Arquivos não salvam
+
+```bash
+# Verificar permissões
+ls -la ~/.config/com.koraengine.editor/
+
+# Resetar config
+rm ~/.config/com.koraengine.editor/config.json
+```
+
+### Assets não aparecem
+
+```javascript
+// Check console logs
+// Error pode ser: file access denied
+// Ou: IndexedDB quota exceeded
+```
+
+### Build falha
+
+```bash
+# Deps
+apt-get install libsecret-1-dev  # Linux
+
+# macOS
+xcode-select --install
+
+# Windows
+# Instale Visual Studio Build Tools
+```
+
+## 🚧 Roadmap
+
+### v0.2
+- [ ] KScript editor com syntax highlighting
+- [ ] Plugin system
+- [ ] Asset optimization (sprite sheets)
+- [ ] Version control (Git integration)
+
+### v0.3
+- [ ] Multi-window (Inspector separado)
+- [ ] Cloud sync (Google Drive, OneDrive)
+- [ ] Asset import wizard
+- [ ] Scene template browser
+
+### v1.0
+- [ ] Auto-update mechanism
+- [ ] Marketplace de assets/templates
+- [ ] Tutorial integrado
+- [ ] Analytics (opt-in)
+
+## 📚 Recursos
+
+- [Documento Principal](../../README.md)
+- [KScript Guide](../../docs/SCRIPT.md)
+- [Editor Guide](../../docs/EDITOR_GUIDE.md)
+- [Architecture](../../docs/ARCHITECTURE.md)
+
+## 💬 Support
+
+- **Issues**: [GitHub Issues](https://github.com/koraengine/kora/issues)
+- **Docs**: [Documentation](https://koraengine.dev/docs)
+- **Email**: support@koraengine.dev
 
 ## 📄 License
 
-MIT License - See [LICENSE](./LICENSE)
+MIT License — see [../../LICENSE](../../LICENSE)
 
 ---
 
-**Kora Engine** - Crie jogos para Android com poder nativo e desenvolvimento simplificado.
+**Kora Editor Desktop** - Crie jogos incríveis para Android com poder nativo!

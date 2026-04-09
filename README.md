@@ -1,323 +1,377 @@
 # Kora Engine
 
-> A 2D game engine for Android, built with a Go core and KScript — a statically compiled scripting language with async/await support.
+> Engine de jogos 2D para Android com editor visual desktop e linguagem KScript compilada para Go.
 
----
+## 🎮 O que é Kora?
 
-## What is Kora?
+Kora Engine é uma engine de jogos 2D inspirada no GameMaker Studio, projetada especificamente para criar jogos nativos para Android. Diferencia-se por:
 
-Kora is an open 2D game engine targeting Android, inspired by GameMaker Studio. It combines a high-performance Go runtime with **KScript**, a TypeScript-like language designed exclusively for game logic. KScript is compiled ahead-of-time (AOT) — no VM runs on the device.
+- **Editor Desktop Nativo** - Aplicativo Electron com integração completa ao sistema
+- **KScript** - Linguagem própria compilada para Go (sem VM)
+- **Runtime Go** - Performance nativa ARM64 via gomobile
+- **Zero Overhead** - Código compilado, executável direto no Android
 
----
+### Principais Características
 
-## Core Principles
+- ✅ **Editor Visual Desktop** - Crie cenas arrastando e soltando entidades
+- ✅ **Assets Import** - PNG, JPG, WebP, OGG, WAV com persistência IndexedDB
+- ✅ **Preview em Tempo Real** - Física 2D e teste imediato
+- ✅ **KScript Compilado** - TypeScript-like, async/await, tipagem estática
+- ✅ **APK Nativo** - Compile para Android com runtime 100% Go
+- ✅ **Offline First** - Funciona completamente offline
 
-- **Go Core** — rendering, input, audio, physics, scene graph and asset pipeline.
-- **KScript** — familiar TypeScript-like syntax, compiled to Go, no script runtime on device.
-- **AOT Compilation** — KScript transpiles to Go, then everything compiles to a native Android APK/AAB.
-- **Async-first** — coroutine-style `async/await` backed by an engine scheduler, not a JS event loop.
-- **2D only (v1)** — sprites, tilemaps, cameras, particles, UI.
-- **Visual Editor** — scene editor, sprite editor, object inspector, project manager.
-
----
-
-## Architecture Overview
+## 🏗️ Arquitetura
 
 ```
-┌──────────────────────────────────────────────────┐
-│                  Kora Editor                     │
-│  (Scene Editor · Inspector · Asset Browser)      │
-└───────────────────┬──────────────────────────────┘
-                    │ project files (.kora, .ks, assets)
-                    ▼
-┌──────────────────────────────────────────────────┐
-│              KScript Compiler                    │
-│  Lexer → Parser → AST → Type Check → Go Emitter  │
-└───────────────────┬──────────────────────────────┘
-                    │ generated Go files
-                    ▼
-┌──────────────────────────────────────────────────┐
-│               Kora Runtime (Go)                  │
-│  Render · Input · Audio · Physics · Scene · ECS  │
-│  Async Scheduler · Asset Loader · Export         │
-└───────────────────┬──────────────────────────────┘
-                    │ compiled binary
-                    ▼
-          Android APK / AAB
+┌────────────────────────────────────────────────────────────┐
+│              Kora Editor Desktop (Electron)                 │
+│  Scene Editor  ·  Asset Manager  ·  Inspector              │
+│  File System  ·  Native Menus  ·  Build Pipeline           │
+└─────────────────────┬──────────────────────────────────────┘
+                      │ exporta cena
+                      ▼
+┌────────────────────────────────────────────────────────────┐
+│              Scene Data (.kora.json)                        │
+│  { entities: [...], meta: {...}, assets: [...] }           │
+└─────────────────────┬──────────────────────────────────────┘
+                      │ compila
+                      ▼
+┌────────────────────────────────────────────────────────────┐
+│           KScript Compiler (Go)                             │
+│  Lexer → Parser → Type Check → Go Emitter                  │
+└─────────────────────┬──────────────────────────────────────┘
+                      │ gera código Go
+                      ▼
+┌────────────────────────────────────────────────────────────┐
+│           Kora Runtime (Go + gomobile)                      │
+│  Render · Physics · Input · Audio · Scene · ECS            │
+│  Async Scheduler · Asset Loader · Collision                │
+└─────────────────────┬──────────────────────────────────────┘
+                      │ compila ARM64
+                      ▼
+              Android APK / AAB (Native)
 ```
 
----
+## 🚀 Quickstart
 
-## KScript — Language Overview
+### Pré-requisitos
 
-KScript is a restricted, statically typed language with TypeScript-like syntax. It compiles to Go source code before the Android build — no script interpreter runs on the device.
+- **Node.js 18+** (editor desktop)
+- **Go 1.22+** (compiler + runtime)
+- **Android SDK** (apenas para build APK)
 
-### Key Constraints
-- No dynamic types, reflection or eval.
-- No access to OS, filesystem or network directly.
-- Only engine-provided modules can be imported.
-- `async/await` is supported but limited to engine Task primitives.
+### Opção 1: Desktop App (Recomendado)
 
-### Example
+```bash
+# Clone e instale
+git clone https://github.com/koraengine/kora.git
+cd kora/apps/desktop
+npm install
 
-```ts
+# Inicie o editor
+npm run dev
+```
+
+### Opção 2: Editor Web (Rápido)
+
+```bash
+cd editor
+python -m http.server 8080
+# Acesse: http://localhost:8080
+```
+
+### Workflow Básico
+
+```bash
+# 1. Crie cenas no editor
+# 2. Importe assets (PNG, JPG, OGG, WAV)
+# 3. Arraste para a cena → cria entidades
+# 4. Adicione KScript → on Update(dt) { ... }
+# 5. Salve: Ctrl+S (.kora.json)
+# 6. Exporte KScript: botão ".ks"
+
+# 7. Compile
+go run cmd/build.go jogo.ks > main.go
+
+# 8. Build APK
+cd android && ./build.sh release
+# APK em: android/app/build/outputs/apk/release/
+```
+
+## 📖 Documentação
+
+| Documentação | Descrição |
+|--------------|-----------|
+| [KScript Guide](docs/SCRIPT.md) | Linguagem completa com exemplos |
+| [API Reference](docs/API_REFERENCE.md) | Referências de todas APIs |
+| [Editor Guide](docs/EDITOR_GUIDE.md) | Guia do editor visual |
+| [Assets Guide](docs/ASSETS_GUIDE.md) | Importação e gerenciamento |
+| [Desktop App](docs/DESKTOP_APP.md) | App Electron, APIs, build |
+| [Architecture](docs/ARCHITECTURE.md) | Arquitetura do sistema |
+| [Contributing](docs/CONTRIBUTING.md) | Como contribuir |
+
+## 🎓 KScript - Linguagem
+
+KScript é TypeScript-like, compilada para Go. Sem VM, zero runtime overhead.
+
+### Exemplo
+
+```kscript
 object Player {
   speed: float = 180
   hp: int = 5
 
   async create() {
-    await wait(0.3)
-    this.hp = 5
+    await wait(0.5)
+    this.hp = 10
   }
 
   update(dt: float) {
-    const ax = Input.axisX()
-    if (ax != 0) {
-      this.x += ax * this.speed * dt
-    }
+    const move = Input.axisX()
+    this.x += move * this.speed * dt
 
-    if (Input.pressed("jump") && this.onGround()) {
-      this.velY = -320
+    if (Input.pressed("Space") && this.onGround()) {
+      this.y -= 300
     }
   }
 
-  async onHit(other: Entity) {
-    this.hp -= 1
-    await tween(this, { alpha: 0.0 }, 0.1)
-    await tween(this, { alpha: 1.0 }, 0.1)
+  onHit(damage: int) {
+    this.hp -= damage
     if (this.hp <= 0) {
-      await signal(this, "dead")
-      this.destroy()
+      emit(this, "dead")
+      destroyAsync(this)
     }
   }
 }
 ```
 
-### Async Primitives
+### Recursos
 
-| Primitive | Description |
-|---|---|
-| `wait(seconds)` | Pause for N seconds |
-| `waitFrames(n)` | Pause for N frames |
-| `waitSignal(obj, name)` | Wait until a signal is emitted |
-| `tween(obj, props, duration)` | Animate properties |
-| `race(a, b)` | Continue on whichever task finishes first |
-| `all(a, b, c)` | Wait for all tasks to complete |
-| `cancel(task)` | Cancel a running task |
+- **Tipagem estática** - Erros em tempo de compilação
+- **Async/await** - Corrotinas para lógica não-blocking
+- **Signals** - Sistema reativo de eventos
+- **Tweens** - Animação automática de propriedades
+- **Collections** - Array, Map com generics
 
----
+## 🛠️ Build & Development
 
-## Project Structure
+### Scripts Makefile
+
+```bash
+# Setup inicial
+make setup
+
+# Run editor web
+make dev
+
+# Run desktop app
+make desktop
+
+# Build compiler
+make compiler
+
+# Run example
+make run
+
+# Build APK
+make apk
+
+# All builds
+make build
+
+# Tests
+make test
+
+# Clean artifacts
+make clean
+```
+
+### Build Desktop App
+
+```bash
+cd apps/desktop
+
+# Dev mode
+npm run dev
+
+# Build all
+npm run build
+
+# Platform-specific
+npm run build:win    # Windows (nsis, portable)
+npm run build:mac    # macOS (dmg, zip)
+npm run build:linux  # Linux (AppImage, deb)
+```
+
+### Build APK
+
+```bash
+# Configurar ANDROID_HOME
+export ANDROID_HOME=$HOME/Android/Sdk
+
+# Debug (rápido, sem assinatura)
+./android/build.sh debug
+
+# Release (com keystore)
+./android/build.sh release
+```
+
+## 📊 Tecnologia
+
+| Camada | Tecnologia |
+|--------|------------|
+| **Editor Desktop** | Electron 28 + Vite + HTML5 Canvas |
+| **Editor Web** | Vanilla JS + IndexedDB |
+| **KScript** | Custom language → Go compiler |
+| **Runtime** | Go 1.22+ + gomobile |
+| **Output** | Native ARM64 APK/AAB |
+| **Physics** | AABB collision + forces |
+| **Assets** | Image, Audio, Tilemap loaders |
+
+## 📦 Estrutura do Projeto
 
 ```
 kora/
-├── core/              # Go runtime: render, input, audio, physics, ECS
-│   ├── render/
-│   ├── input/
-│   ├── audio/
-│   ├── physics/
-│   ├── scene/
-│   ├── async/         # Task scheduler and coroutine model
-│   └── assets/
-├── compiler/          # KScript compiler
+├── editor/                     # Editor web (HTML/JS)
+│   ├── index.html
+│   ├── editor.js              # Core editor logic
+│   ├── assets-panel.js        # Asset management
+│   ├── serializer.js          # JSON ↔ KScript
+│   ├── idb.js                 # IndexedDB wrapper
+│   ├── preview-panel.js       # Preview runtime
+│   ├── style.css              # Styles
+│   └── preview.html           # Preview page
+│
+├── apps/desktop/               # Desktop Electron app
+│   ├── src/main/              # Electron main process
+│   │   ├── index.js           # Window, menu, IPC
+│   │   └── preload.js         # API bridge
+│   ├── src/renderer/          # Renderer UI
+│   │   ├── index.html
+│   │   └── assets/
+│   │       └── style.css
+│   ├── package.json           # Dependencies
+│   └── vite.config.js         # Build config
+│
+├── compiler/                   # KScript → Go compiler
 │   ├── lexer/
 │   ├── parser/
 │   ├── ast/
-│   ├── checker/       # Type checker and semantic analysis
-│   └── emitter/       # Go code emitter
-├── editor/            # Visual editor (desktop app)
-├── export/
-│   └── android/       # APK/AAB build pipeline
-├── stdlib/            # KScript standard library definitions
-├── examples/          # Example games and scenes
-└── docs/              # Documentation
+│   ├── checker/
+│   └── emitter/
+│
+├── core/                       # Runtime Go
+│   ├── render/                # 2D renderer
+│   ├── physics/               # AABB physics
+│   ├── input/                 # Input system
+│   ├── async/                 # Task scheduler
+│   ├── assets/                # Asset loading
+│   └── scene/                 # Scene graph
+│
+├── cmd/                        # CLI commands
+│   ├── build.go               # Build entry
+│   └── main.go                # Runtime entry
+│
+├── android/                    # APK build pipeline
+│   ├── build.sh               # Build script
+│   └── app/                   # Gradle config
+│
+├── examples/                   # Example scenes/games
+│
+└── docs/                       # Documentation
+    ├── SCRIPT.md              # Language reference
+    ├── API_REFERENCE.md       # API docs
+    ├── EDITOR_GUIDE.md        # Editor guide
+    ├── ASSETS_GUIDE.md        # Assets guide
+    ├── DESKTOP_APP.md         # Desktop app
+    ├── ARCHITECTURE.md        # Architecture
+    └── CONTRIBUTING.md        # How to contribute
 ```
 
----
+## 📋 Roadmap
 
-## Roadmap
+### v0.3 — Editor Desktop ✅
+- [x] Electron wrapper
+- [x] Native menus
+- [x] File dialogs
+- [x] Asset management
+- [x] IndexedDB persistence
+- [x] KScript export
+- [ ] KScript editor (in progress)
+- [ ] Plugin system
 
-### v0.1 — Core Runtime
-- [ ] 2D renderer (sprites, tilemaps, camera)
-- [ ] Input system (keyboard, touch)
-- [ ] Audio (sfx, music)
-- [ ] Scene graph + entity system
-- [ ] Basic AABB physics
-- [ ] Asset loader
+### v0.4 — Compiler
+- [x] Basic types (int, float, bool, string)
+- [x] Objects and methods
+- [x] Async/await
+- [x] Signals/emits
+- [x] Type checking
+- [ ] Collections (Array, Map)
+- [ ] Enums
+- [ ] Modules/imports
 
-### v0.2 — KScript Compiler
-- [ ] Lexer and parser
-- [ ] AST and type checker
-- [ ] Go code emitter
-- [ ] Async/await → state machine compilation
-- [ ] Engine API bindings
+### v0.5 — Runtime
+- [x] Entity system
+- [x] 2D renderer
+- [x] AABB physics
+- [x] Input system
+- [x] Asset loader
+- [x] Sound (OGG, WAV)
+- [ ] Tilemaps (Tiled)
+- [ ] Particle system
+- [ ] UI system
 
-### v0.3 — Editor
-- [ ] Scene editor (drag/drop objects)
-- [ ] Sprite and animation editor
-- [ ] Object inspector
-- [ ] KScript editor with syntax highlighting
-- [ ] Project manager
-
-### v0.4 — Android Export
-- [ ] APK build pipeline
-- [ ] AAB build for Google Play
-- [ ] Keystore and signing
-- [ ] Android manifest configuration
-
-### v1.0 — Public Release
+### v1.0 — Release
 - [ ] Stable KScript API
-- [ ] Template projects
-- [ ] Documentation site
+- [ ] Full documentation
 - [ ] Example games
+- [ ] Template projects
+- [ ] Auto-updater
+- [ ] Multi-platform export (iOS, Windows, Linux)
+
+## 🤝 Contribuindo
+
+Veja [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) para como contribuir.
+
+### Código de Conduta
+
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+## 💡 Exemplo Completo
+
+```bash
+# 1. Inicie o desktop app
+cd apps/desktop
+npm install
+npm run dev
+
+# 2. No editor:
+#    - Importe player.png
+#    - Arraste para a cena
+#    - Adicione KScript:
+
+on Update(dt) {
+  this.x = this.x + 100 * dt
+  if (this.x > 360) {
+    this.x = 0
+  }
+}
+
+# 3. Exporte cena: Ctrl+S → cena.kora.json
+# 4. Exporte KScript: botão ".ks" → game.ks
+# 5. Compile: go run cmd/build.go game.ks > main.go
+# 6. Build APK: ./android/build.sh release
+# 7. Instale: adb install app-release.apk
+```
+
+## 📄 License
+
+MIT License — see [LICENSE](LICENSE)
 
 ---
 
-## Technology Stack
+**Kora Engine** - Crie jogos 2D para Android com editor visual e performance nativa.
 
-| Layer | Technology |
-|---|---|
-| Core runtime | Go |
-| Scripting language | KScript (custom, TS-like) |
-| Mobile export | gomobile + Android SDK |
-| Editor | TBD (desktop, cross-platform) |
-| 2D rendering | Ebitengine (Go) |
-
----
-
-## Licença
-
-MIT License — see [LICENSE](LICENSE).
-
----
-
-## Quickstart — Rodando o Projeto
-
-### Pré-requisitos
-
-- **Node.js 18+** (para desenvolvimento local)
-- **Go 1.22+** (para compilar binários e APKs)
-
-### Editor Visual (Desenvolvimento)
-
-O editor é uma aplicação web pura. Para rodar localmente:
-
-```bash
-# Usando Python
-cd editor
-python -m http.server 8080
-# Acesse: http://localhost:8080
-
-# OU usando Node.js
-npx serve editor --port 8080
-
-# OU abra diretamente index.html no navegador
-```
-
-### Importando Assets no Editor
-
-1. Clique na aba **Assets** no topo
-2. Clique em **+ Importar** ou arraste arquivos (PNG, JPG, WebP, OGG, WAV)
-3. Assets são salvos automaticamente em **IndexedDB** (persistem entre sessões)
-4. Arraste um asset do painel para o canvas → cria entidade automaticamente
-5. Botão "×" aparece no hover → deleta o asset
-
-### Exportar Cena
-
-- **Salvar JSON**: CTRL+S (cena .kora.json)
-- **Exportar KScript**: Botão ".ks" → gera código executável
-
-### Rodar Cena Exportada
-
-```bash
-# Compile sua cena .ks
-go run cmd/build.go -o jogo jogo.ks
-
-# Ou rode direto com exemplo
-go run main.go examples/
-```
-
-## Build — Criando APK
-
-### Passo 1: Preparar ambiente Android
-
-```bash
-# Instalar gomobile
-go install golang.org/x/mobile/cmd/gomobile@latest
-gomobile init
-
-# Definir ANDROID_HOME (ajuste conforme seu sistema)
-export ANDROID_HOME=$HOME/Android/Sdk
-export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-```
-
-### Passo 2: Build release
-
-```bash
-cd android
-./build.sh release
-```
-
-Gera `kora-release.apk` na pasta `android/app/build/outputs/apk/release/`.
-
-### Passo 3: Build debug (mais rápido, sem signing)
-
-```bash
-./build.sh debug
-```
-
-Gera `kora-debug.apk` na pasta `android/app/build/outputs/apk/debug/`.
-
-### Troubleshooting
-
-| Problema | Solução |
-|----------|---------|
-| `gomobile: command not found` | Execute `go install golang.org/x/mobile/cmd/gomobile@latest` |
-| `ANDROID_HOME not set` | Adicione ao seu `.bashrc` ou `.zshrc` |
-| `SDK tools missing` | Use `sdkmanager` do Android Studio |
-
-## Estrutura do Projeto
-
-```
-kora/
-├── editor/         # Editor visual web (HTML5/JS)
-│   ├── index.html
-│   ├── editor.js       # Lógica principal
-│   ├── assets-panel.js # Import, IndexedDB, drag-drop
-│   ├── serializer.js   # JSON ↔ KScript
-│   ├── idb.js          # IndexedDB wrapper
-│   ├── preview.html    # Runtime preview
-│   └── style.css
-├── compiler/         # KScript → Go compiler
-├── core/             # Runtime Go: render, input, physics, scene
-├── cmd/              # Comandos CLI
-├── android/          # Build pipeline APK (gomobile)
-├── examples/         # Cenas de exemplo
-└── docs/             # Documentação
-```
-
-## Workflow Recomendado
-
-1. **Criar cena**: Abra editor, importe sprites (aba Assets)
-2. **Montar cena**: Arraste sprites → posicione → edite propriedades
-3. **Salve**: CTRL+S (`.kora.json`)
-4. **Exporte KScript**: Botão ".ks"
-5. **Teste**: Abra Preview (F5) ou compile para APK
-
-## Exemplo Rápido
-
-```bash
-# 1. Abra http://localhost:8080
-# 2. Importe player.png na aba Assets
-# 3. Arraste para o canvas
-# 4. Dê duplo clique no player no inspector
-# 5. Adicione script:
-#
-#   on Update(dt) {
-#     self.x += 100 * dt
-#   }
-#
-# 6. Exporte como jogo.ks
-# 7. go run cmd/build.go -o jogo jogo.ks
-# 8. ./android/build.sh release
-```
+[**Baixar Desktop App**](apps/desktop/README.md)  
+[**Documentação KScript**](docs/SCRIPT.md)  
+[**API Reference**](docs/API_REFERENCE.md)
