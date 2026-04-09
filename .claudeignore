@@ -21,6 +21,7 @@ android/*.keystore
 *.aar
 *.so
 *.a
+node_modules/
 
 # ------ Gerados automaticamente pelo compilador KScript ------
 compiler/generated/
