@@ -1,285 +1,282 @@
 /* =============================================================
    Kora Editor — assets-panel.js
-   Manages the Assets panel: import files, thumbnail preview,
-   drag-and-drop onto the scene canvas to spawn entities.
+   Manages the Assets tab: image/audio import, asset library,
+   drag-and-drop from panel onto canvas to spawn entities.
 ============================================================= */
 'use strict';
 
 const ASSET_TYPES = {
-  image: { exts: ['png','jpg','jpeg','gif','webp','svg'], icon: '🖼', entityType: 'sprite' },
-  audio: { exts: ['mp3','ogg','wav','flac'],             icon: '🔊', entityType: 'audio'  },
-  tilemap: { exts: ['tmj','tmx','json'],                 icon: '🗺',  entityType: 'tilemap'},
-  script: { exts: ['ks'],                               icon: '📜', entityType: 'custom' },
+  image: ['png','jpg','jpeg','gif','webp','svg'],
+  audio: ['mp3','ogg','wav'],
+  tileset: ['png','jpg','jpeg'],
 };
 
-function extOf(name) { return name.split('.').pop().toLowerCase(); }
-function typeOf(name) {
-  const e = extOf(name);
-  for (const [t, info] of Object.entries(ASSET_TYPES)) {
-    if (info.exts.includes(e)) return t;
-  }
-  return 'other';
-}
+const MIME_ICONS = {
+  image:   '🖼️',
+  audio:   '🔊',
+  tileset: '🔲',
+};
 
 class AssetsPanel {
   /**
    * @param {object} opts
-   * @param {HTMLElement} opts.container
-   * @param {function}    opts.onSpawn   – (asset) => void  called when user drops asset onto canvas
-   * @param {function}    opts.onLog     – (msg, type) => void
+   * @param {HTMLElement} opts.container     – element for the panel UI
+   * @param {HTMLElement} opts.canvas        – scene canvas (drop target)
+   * @param {function}    opts.screenToWorld – (sx,sy) => [wx,wy]
+   * @param {function}    opts.spawnEntity   – (name, type, wx, wy, assetId) => void
+   * @param {function}    opts.onLog         – (msg, type) => void
    */
-  constructor({ container, onSpawn, onLog }) {
-    this._container = container;
-    this._onSpawn   = onSpawn || (() => {});
-    this._log       = onLog   || (() => {});
-    this._assets    = [];   // { id, name, type, url, size }
-    this._idSeq     = 1;
-    this._filter    = 'all';
-    this._search    = '';
-    this._build();
+  constructor({ container, canvas, screenToWorld, spawnEntity, onLog }) {
+    this._container     = container;
+    this._canvas        = canvas;
+    this._screenToWorld = screenToWorld;
+    this._spawnEntity   = spawnEntity;
+    this._log           = onLog || (() => {});
+
+    /** @type {Map<string, Asset>} */
+    this._assets = new Map();
+    this._dragAssetId = null;
+
+    this._buildUI();
+    this._bindCanvasDrop();
   }
 
   // ----------------------------------------------------------------
-  // Build UI
+  // Public API
   // ----------------------------------------------------------------
-  _build() {
+
+  /** Returns a copy of all stored assets. */
+  getAll() {
+    return [...this._assets.values()];
+  }
+
+  /** Returns the asset object for a given id, or null. */
+  get(id) {
+    return this._assets.get(id) || null;
+  }
+
+  // ----------------------------------------------------------------
+  // UI
+  // ----------------------------------------------------------------
+
+  _buildUI() {
     this._container.innerHTML = `
-      <div class="assets-toolbar">
-        <button class="tb-btn" id="ap-import">&#8682; Importar</button>
-        <input type="file" id="ap-file-input" multiple accept="image/*,audio/*,.ks,.tmj,.tmx,.json" style="display:none">
-        <input class="prop-input ap-search" id="ap-search" placeholder="Buscar asset..." type="search">
-      </div>
-      <div class="assets-filters" id="ap-filters">
-        <button class="af-btn active" data-filter="all">Todos</button>
-        <button class="af-btn" data-filter="image">🖼 Imagens</button>
-        <button class="af-btn" data-filter="audio">🔊 Áudio</button>
-        <button class="af-btn" data-filter="tilemap">🗺 Tilemaps</button>
-        <button class="af-btn" data-filter="script">📜 Scripts</button>
-      </div>
-      <div class="assets-drop-zone" id="ap-drop-zone">
-        <div class="assets-drop-hint" id="ap-drop-hint">
-          <div style="font-size:28px">📂</div>
-          <div>Arraste arquivos aqui ou clique em Importar</div>
-          <div style="font-size:11px;margin-top:4px;opacity:.5">PNG · JPG · SVG · MP3 · OGG · WAV · KS · TMJ</div>
+      <div class="assets-panel">
+        <div class="assets-toolbar">
+          <button class="tb-btn" id="assets-import-btn" title="Importar arquivo">
+            &#43; Importar
+          </button>
+          <input type="file" id="assets-file-input"
+            accept="image/*,audio/*"
+            multiple hidden>
+          <div class="assets-filter">
+            <button class="af-btn active" data-filter="all">Todos</button>
+            <button class="af-btn" data-filter="image">🖼️</button>
+            <button class="af-btn" data-filter="audio">🔊</button>
+          </div>
         </div>
-        <div class="assets-grid" id="ap-grid"></div>
+
+        <div class="assets-drop-zone" id="assets-drop-zone">
+          <div class="assets-drop-hint">
+            <span style="font-size:28px">📂</span>
+            <span>Solte arquivos aqui ou clique em Importar</span>
+          </div>
+        </div>
+
+        <div class="assets-grid" id="assets-grid"></div>
+
+        <div class="assets-status" id="assets-status">0 assets</div>
       </div>
-      <div class="assets-status" id="ap-status">0 assets</div>
     `;
 
     // Import button
-    const fileInput = this._container.querySelector('#ap-file-input');
-    this._container.querySelector('#ap-import').addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', ev => this._importFiles(ev.target.files));
+    this._container.querySelector('#assets-import-btn')
+      .addEventListener('click', () =>
+        this._container.querySelector('#assets-file-input').click()
+      );
 
-    // Search
-    this._container.querySelector('#ap-search').addEventListener('input', ev => {
-      this._search = ev.target.value.toLowerCase();
-      this._renderGrid();
+    // File picker
+    this._container.querySelector('#assets-file-input')
+      .addEventListener('change', ev => {
+        this._importFiles(ev.target.files);
+        ev.target.value = '';
+      });
+
+    // Drop zone
+    const dz = this._container.querySelector('#assets-drop-zone');
+    dz.addEventListener('dragover',  ev => { ev.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', ()  => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', ev => {
+      ev.preventDefault();
+      dz.classList.remove('drag-over');
+      this._importFiles(ev.dataTransfer.files);
     });
 
-    // Filters
+    // Filter buttons
     this._container.querySelectorAll('.af-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._container.querySelectorAll('.af-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this._filter = btn.dataset.filter;
-        this._renderGrid();
+        this._renderGrid(btn.dataset.filter);
       });
-    });
-
-    // Drop zone (file drop from OS)
-    const dropZone = this._container.querySelector('#ap-drop-zone');
-    dropZone.addEventListener('dragover',  ev => { ev.preventDefault(); dropZone.classList.add('drag-over'); });
-    dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', ev => {
-      ev.preventDefault();
-      dropZone.classList.remove('drag-over');
-      this._importFiles(ev.dataTransfer.files);
     });
   }
 
   // ----------------------------------------------------------------
   // Import
   // ----------------------------------------------------------------
+
   _importFiles(fileList) {
-    if (!fileList || fileList.length === 0) return;
-    let count = 0;
+    if (!fileList?.length) return;
+    let imported = 0;
     for (const file of fileList) {
-      const reader = new FileReader();
-      const assetType = typeOf(file.name);
-      reader.onload = ev => {
-        const asset = {
-          id:   this._idSeq++,
-          name: file.name,
-          type: assetType,
-          url:  ev.target.result,
-          size: file.size,
-        };
-        this._assets.push(asset);
-        count++;
-        this._renderGrid();
-        this._updateStatus();
-      };
-      if (assetType === 'image') reader.readAsDataURL(file);
-      else if (assetType === 'audio') reader.readAsDataURL(file);
-      else reader.readAsText(file);
+      const ext  = file.name.split('.').pop().toLowerCase();
+      const kind = this._detectKind(ext, file.type);
+      if (!kind) {
+        this._log(`Formato não suportado: ${file.name}`, 'warn');
+        continue;
+      }
+      const id  = `asset_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+      const url = URL.createObjectURL(file);
+      const asset = { id, name: file.name, kind, url, size: file.size, ext };
+      this._assets.set(id, asset);
+      imported++;
+      this._log(`Importado: ${file.name} (${kind})`, 'ok');
     }
-    this._log(`${fileList.length} arquivo(s) importado(s).`, 'ok');
+    if (imported > 0) this._renderGrid();
+  }
+
+  _detectKind(ext, mime) {
+    if (mime.startsWith('image/') || ASSET_TYPES.image.includes(ext)) return 'image';
+    if (mime.startsWith('audio/') || ASSET_TYPES.audio.includes(ext)) return 'audio';
+    return null;
   }
 
   // ----------------------------------------------------------------
-  // Render grid
+  // Grid
   // ----------------------------------------------------------------
-  _renderGrid() {
-    const grid = this._container.querySelector('#ap-grid');
-    const hint = this._container.querySelector('#ap-drop-hint');
-    if (!grid) return;
 
-    const visible = this._assets.filter(a => {
-      if (this._filter !== 'all' && a.type !== this._filter) return false;
-      if (this._search && !a.name.toLowerCase().includes(this._search)) return false;
-      return true;
-    });
+  _renderGrid(filter = 'all') {
+    const grid = this._container.querySelector('#assets-grid');
+    const status = this._container.querySelector('#assets-status');
+    const dz   = this._container.querySelector('#assets-drop-zone');
+    const assets = [...this._assets.values()]
+      .filter(a => filter === 'all' || a.kind === filter);
 
-    hint.style.display = this._assets.length === 0 ? 'flex' : 'none';
+    dz.style.display  = this._assets.size === 0 ? 'flex' : 'none';
+    grid.style.display = this._assets.size > 0  ? 'grid' : 'none';
+
     grid.innerHTML = '';
-
-    for (const asset of visible) {
-      const card = document.createElement('div');
-      card.className = 'asset-card';
-      card.dataset.assetId = asset.id;
-      card.title = `${asset.name}\n${formatSize(asset.size)}`;
-
-      // Thumbnail
-      const thumb = document.createElement('div');
-      thumb.className = 'asset-thumb';
-      if (asset.type === 'image') {
-        const img = document.createElement('img');
-        img.src = asset.url;
-        img.alt = asset.name;
-        img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:3px;';
-        thumb.appendChild(img);
-      } else {
-        thumb.textContent = ASSET_TYPES[asset.type]?.icon || '📄';
-        thumb.style.fontSize = '28px';
-      }
-
-      // Name
-      const label = document.createElement('div');
-      label.className = 'asset-label';
-      label.textContent = asset.name.length > 16 ? asset.name.slice(0, 14) + '…' : asset.name;
-
-      card.appendChild(thumb);
-      card.appendChild(label);
-
-      // Drag-from-panel to canvas
-      card.draggable = true;
-      card.addEventListener('dragstart', ev => {
-        ev.dataTransfer.setData('kora/asset-id', asset.id);
-        ev.dataTransfer.effectAllowed = 'copy';
-      });
-
-      // Double-click → spawn at scene center
-      card.addEventListener('dblclick', () => this._spawn(asset, 0, 0));
-
-      // Context menu
-      card.addEventListener('contextmenu', ev => {
-        ev.preventDefault();
-        this._showContextMenu(ev, asset);
-      });
-
-      grid.appendChild(card);
+    for (const asset of assets) {
+      grid.appendChild(this._buildCard(asset));
     }
+    status.textContent = `${this._assets.size} asset${this._assets.size !== 1 ? 's' : ''}`;
+  }
+
+  _buildCard(asset) {
+    const card = document.createElement('div');
+    card.className  = 'asset-card';
+    card.draggable  = true;
+    card.dataset.id = asset.id;
+    card.title      = `${asset.name}\n${this._fmtSize(asset.size)}\nArraste para a cena`;
+
+    // Thumbnail
+    const thumb = document.createElement('div');
+    thumb.className = 'asset-thumb';
+    if (asset.kind === 'image') {
+      const img = document.createElement('img');
+      img.src    = asset.url;
+      img.alt    = asset.name;
+      img.width  = 64;
+      img.height = 64;
+      img.loading = 'lazy';
+      img.style.objectFit = 'contain';
+      thumb.appendChild(img);
+    } else {
+      thumb.innerHTML = `<span style="font-size:28px">${MIME_ICONS[asset.kind] || '📄'}</span>`;
+    }
+    card.appendChild(thumb);
+
+    // Label
+    const label = document.createElement('div');
+    label.className   = 'asset-label';
+    label.textContent = this._truncate(asset.name, 14);
+    card.appendChild(label);
+
+    // Delete button
+    const del = document.createElement('button');
+    del.className = 'asset-delete';
+    del.innerHTML = '×';
+    del.title     = 'Remover asset';
+    del.addEventListener('click', ev => {
+      ev.stopPropagation();
+      URL.revokeObjectURL(asset.url);
+      this._assets.delete(asset.id);
+      this._log(`Removido: ${asset.name}`, 'warn');
+      this._renderGrid();
+    });
+    card.appendChild(del);
+
+    // Drag start: mark which asset is being dragged
+    card.addEventListener('dragstart', ev => {
+      this._dragAssetId = asset.id;
+      ev.dataTransfer.setData('text/plain', asset.id);
+      ev.dataTransfer.effectAllowed = 'copy';
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      this._dragAssetId = null;
+    });
+
+    return card;
   }
 
   // ----------------------------------------------------------------
-  // Spawn
+  // Canvas drop
   // ----------------------------------------------------------------
-  _spawn(asset, worldX, worldY) {
-    this._onSpawn({ asset, worldX, worldY });
-    this._log(`Spawned "${asset.name}" na cena.`, 'ok');
-  }
 
-  // ----------------------------------------------------------------
-  // Context menu
-  // ----------------------------------------------------------------
-  _showContextMenu(ev, asset) {
-    document.querySelector('#ap-ctx-menu')?.remove();
-    const menu = document.createElement('div');
-    menu.id = 'ap-ctx-menu';
-    menu.className = 'ctx-menu';
-    menu.style.cssText = `left:${ev.clientX}px;top:${ev.clientY}px`;
-    menu.innerHTML = `
-      <button class="ctx-item" data-action="spawn">➕ Adicionar à cena</button>
-      <button class="ctx-item" data-action="rename">✏️ Renomear</button>
-      <div class="ctx-sep"></div>
-      <button class="ctx-item ctx-danger" data-action="delete">🗑 Remover</button>
-    `;
-    document.body.appendChild(menu);
-    const close = () => menu.remove();
-    setTimeout(() => document.addEventListener('click', close, { once: true }), 0);
+  _bindCanvasDrop() {
+    const c = this._canvas;
 
-    menu.querySelector('[data-action="spawn"]').addEventListener('click', () => {
-      this._spawn(asset, 0, 0); close();
-    });
-    menu.querySelector('[data-action="rename"]').addEventListener('click', () => {
-      const n = prompt('Novo nome:', asset.name);
-      if (n && n.trim()) { asset.name = n.trim(); this._renderGrid(); } close();
-    });
-    menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
-      this._assets = this._assets.filter(a => a.id !== asset.id);
-      this._renderGrid(); this._updateStatus();
-      this._log(`Asset "${asset.name}" removido.`, 'warn'); close();
-    });
-  }
-
-  // ----------------------------------------------------------------
-  // Canvas drop target registration
-  // ----------------------------------------------------------------
-  /**
-   * Call this once with the scene canvas element.
-   * When an asset card is dropped onto the canvas, it calls onSpawn
-   * with the world coordinates of the drop point.
-   */
-  registerCanvasDrop(canvasEl, screenToWorld) {
-    canvasEl.addEventListener('dragover', ev => {
-      if (ev.dataTransfer.types.includes('kora/asset-id')) {
-        ev.preventDefault();
-        ev.dataTransfer.dropEffect = 'copy';
-        canvasEl.classList.add('canvas-drop-target');
-      }
-    });
-    canvasEl.addEventListener('dragleave', () => canvasEl.classList.remove('canvas-drop-target'));
-    canvasEl.addEventListener('drop', ev => {
+    c.addEventListener('dragover', ev => {
+      if (!this._dragAssetId) return;
       ev.preventDefault();
-      canvasEl.classList.remove('canvas-drop-target');
-      const id = parseInt(ev.dataTransfer.getData('kora/asset-id'));
-      const asset = this._assets.find(a => a.id === id);
+      ev.dataTransfer.dropEffect = 'copy';
+      c.style.outline = '2px solid #00e5a0';
+    });
+    c.addEventListener('dragleave', () => {
+      c.style.outline = '';
+    });
+    c.addEventListener('drop', ev => {
+      ev.preventDefault();
+      c.style.outline = '';
+      const id = this._dragAssetId || ev.dataTransfer.getData('text/plain');
+      if (!id) return;
+      const asset = this._assets.get(id);
       if (!asset) return;
-      const r = canvasEl.getBoundingClientRect();
-      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top);
-      this._spawn(asset, Math.round(wx), Math.round(wy));
+
+      const rect   = c.getBoundingClientRect();
+      const [wx, wy] = this._screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top);
+      const entityType = asset.kind === 'audio' ? 'audio' : 'sprite';
+      this._spawnEntity(asset.name.replace(/\.[^.]+$/, ''), entityType, wx, wy, id);
+      this._log(`Entidade criada a partir de: ${asset.name}`, 'ok');
     });
   }
 
   // ----------------------------------------------------------------
   // Helpers
   // ----------------------------------------------------------------
-  _updateStatus() {
-    const el = this._container.querySelector('#ap-status');
-    if (el) el.textContent = `${this._assets.length} asset${this._assets.length !== 1 ? 's' : ''}`;
+
+  _truncate(str, max) {
+    return str.length > max ? str.slice(0, max - 1) + '…' : str;
   }
 
-  getAsset(id) { return this._assets.find(a => a.id === id); }
-  getAll()     { return [...this._assets]; }
-}
-
-function formatSize(bytes) {
-  if (!bytes) return '';
-  if (bytes < 1024)       return bytes + ' B';
-  if (bytes < 1024*1024)  return (bytes/1024).toFixed(1) + ' KB';
-  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  _fmtSize(bytes) {
+    if (bytes < 1024)       return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
 }
 
 window.AssetsPanel = AssetsPanel;

@@ -40,6 +40,7 @@
 </header>
 
 <div class="workspace">
+
   <aside class="panel panel-hierarchy">
     <div class="panel-header">
       <span>Hierarquia</span>
@@ -49,45 +50,47 @@
   </aside>
 
   <main class="viewport" id="main-content">
-    <!-- SCENE TAB -->
+
+    <!-- SCENE -->
     <div id="tab-scene" class="tab-pane active">
       <div class="viewport-toolbar">
-        <button class="vp-tool active" data-tool="select" title="Selecionar (V)">&#9654;</button>
-        <button class="vp-tool" data-tool="move"  title="Mover (G)">&#10021;</button>
-        <button class="vp-tool" data-tool="scale" title="Escala (S)">&#10529;</button>
+        <button class="vp-tool active" data-tool="select">&#9654;</button>
+        <button class="vp-tool" data-tool="move">&#10021;</button>
+        <button class="vp-tool" data-tool="scale">&#10529;</button>
         <div class="vp-sep"></div>
         <span class="vp-info" id="vp-coords">x: 0  y: 0</span>
         <span class="vp-info" id="vp-zoom">100%</span>
-        <button class="vp-tool" id="btn-zoom-fit" title="Encaixar (F)">&#8862;</button>
+        <button class="vp-tool" id="btn-zoom-fit">&#8862;</button>
       </div>
       <canvas id="scene-canvas"></canvas>
     </div>
 
-    <!-- PREVIEW TAB -->
+    <!-- PREVIEW -->
     <div id="tab-preview" class="tab-pane" style="display:none">
       <div id="preview-container" class="preview-container"></div>
     </div>
 
-    <!-- ASSETS TAB -->
+    <!-- ASSETS -->
     <div id="tab-assets" class="tab-pane" style="display:none">
       <div id="assets-container" class="assets-container"></div>
     </div>
 
-    <!-- CODE TAB -->
+    <!-- CODE (placeholder) -->
     <div id="tab-code" class="tab-pane" style="display:none">
-      <div class="code-placeholder">
-        <div style="font-size:28px">📜</div>
-        <div>Editor KScript — Issue #5</div>
-      </div>
+      <div style="padding:24px;color:var(--color-text-muted);font-size:13px">Editor KScript — em breve (#5)</div>
     </div>
+
   </main>
 
   <aside class="panel panel-inspector" id="inspector">
-    <div class="panel-header"><span id="inspector-title">Inspetor</span></div>
+    <div class="panel-header">
+      <span id="inspector-title">Inspetor</span>
+    </div>
     <div class="inspector-body" id="inspector-body">
       <p class="inspector-empty">Selecione uma entidade</p>
     </div>
   </aside>
+
 </div>
 
 <footer class="console" id="console">
