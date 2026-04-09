@@ -1,5 +1,5 @@
 /* =============================================================
-   Kora Visual Editor — editor.js  (v2: with serialization)
+   Kora Visual Editor — editor.js  (v3: with preview panel)
 ============================================================= */
 'use strict';
 
@@ -14,7 +14,7 @@ const state = {
   drag:      null,
   idSeq:     1,
   meta:      { name: 'Untitled', version: 1, logicalW: 360, logicalH: 640 },
-  dirty:     false,   // unsaved changes flag
+  dirty:     false,
 };
 
 const LOGICAL_W = 360;
@@ -57,6 +57,15 @@ function log(msg, type = 'info') {
 document.getElementById('btn-clear-console').addEventListener('click', () => { consoleBody.innerHTML = ''; });
 
 // ------------------------------------------------------------------
+// Preview Panel init
+// ------------------------------------------------------------------
+const previewPanel = new PreviewPanel({
+  container: document.getElementById('preview-container'),
+  getScene: () => ({ entities: state.entities, meta: state.meta }),
+  onLog: log,
+});
+
+// ------------------------------------------------------------------
 // Canvas sizing
 // ------------------------------------------------------------------
 function resizeCanvas() {
@@ -87,7 +96,6 @@ function screenToWorld(sx, sy) {
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
-
   const [ox, oy] = worldToScreen(-LOGICAL_W / 2, -LOGICAL_H / 2);
   const pw = LOGICAL_W * state.cam.zoom, ph = LOGICAL_H * state.cam.zoom;
   ctx.save();
@@ -95,10 +103,8 @@ function render() {
   ctx.strokeRect(ox, oy, pw, ph);
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(ox, oy, pw, ph);
   ctx.restore();
-
   for (const e of state.entities) { if (e.visible) drawEntity(e); }
   if (state.selected) { const e = getEntity(state.selected); if (e) drawSelection(e); }
-
   zoomEl.textContent = Math.round(state.cam.zoom * 100) + '%';
   document.title = (state.dirty ? '● ' : '') + state.meta.name + ' — Kora Editor';
 }
@@ -112,8 +118,6 @@ function drawGrid() {
   for (let y = offY; y < canvas.height; y += STEP) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y);  ctx.stroke(); }
   ctx.restore();
 }
-
-const ENTITY_ICONS = { sprite:'🟦', tilemap:'🔲', camera:'📷', audio:'🔊', custom:'⬡' };
 
 function drawEntity(e) {
   const [sx, sy] = worldToScreen(e.x, e.y);
@@ -140,11 +144,10 @@ function drawSelection(e) {
 }
 
 // ------------------------------------------------------------------
-// Entity helpers
+// Entities
 // ------------------------------------------------------------------
 function getEntity(id) { return state.entities.find(e => e.id === id); }
 function nextId() { return state.idSeq++; }
-
 function createEntity(name, type) {
   return { id: nextId(), name, type, x:0, y:0, w:48, h:48, rotation:0, visible:true, locked:false, color: randomColor(), script:'' };
 }
@@ -155,6 +158,7 @@ function randomColor() {
 // ------------------------------------------------------------------
 // Hierarchy
 // ------------------------------------------------------------------
+const ENTITY_ICONS = { sprite:'🟦', tilemap:'🔲', camera:'📷', audio:'🔊', custom:'⬡' };
 function buildHierarchy() {
   hierarchyEl.innerHTML = '';
   for (const e of state.entities) {
@@ -242,7 +246,6 @@ function buildInspector(e) {
 // ------------------------------------------------------------------
 // Serialization actions
 // ------------------------------------------------------------------
-
 function actionNew() {
   if (state.dirty && !confirm('Há alterações não salvas. Criar nova cena?')) return;
   state.entities=[]; state.selected=null; state.idSeq=1;
@@ -250,31 +253,23 @@ function actionNew() {
   buildHierarchy(); deselectAll(); clearDirty();
   log('Nova cena criada.','ok');
 }
-
 function actionSave() {
   const doc = Serializer.sceneToJSON(state.entities, state.meta);
   Serializer.downloadJSON(doc, `${state.meta.name}.kora.json`);
-  clearDirty();
-  showToast('✅ Cena salva como JSON');
+  clearDirty(); showToast('✅ Cena salva como JSON');
   log(`Cena salva: ${state.meta.name}.kora.json`,'ok');
 }
-
 async function actionOpen() {
   try {
     const doc = await Serializer.openSceneFile();
     const { entities, meta } = Serializer.jsonToScene(doc, nextId);
     if (state.dirty && !confirm('Há alterações não salvas. Abrir mesmo assim?')) return;
-    state.entities = entities;
-    state.meta     = meta;
-    state.selected = null;
+    state.entities = entities; state.meta = meta; state.selected = null;
     buildHierarchy(); deselectAll(); clearDirty();
     log(`Cena carregada: ${meta.name} (${entities.length} entidades)`,'ok');
     showToast(`📂 ${meta.name} carregado`);
-  } catch (err) {
-    log(err.message, 'error');
-  }
+  } catch (err) { log(err.message, 'error'); }
 }
-
 function actionExportKScript() {
   const src = Serializer.sceneToKScript(state.entities, state.meta.name);
   Serializer.downloadKScript(src, `${state.meta.name}.ks`);
@@ -282,11 +277,41 @@ function actionExportKScript() {
   log(`KScript exportado: ${state.meta.name}.ks`,'ok');
 }
 
-// Topbar buttons
 document.getElementById('btn-new').addEventListener('click', actionNew);
 document.getElementById('btn-save').addEventListener('click', actionSave);
 document.getElementById('btn-open').addEventListener('click', actionOpen);
 document.getElementById('btn-export-ks').addEventListener('click', actionExportKScript);
+
+// Play button → switch to preview tab AND run
+document.getElementById('btn-play').addEventListener('click', () => {
+  // Switch to preview tab
+  document.querySelectorAll('.tb-btn[data-tab]').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-tab="preview"]').classList.add('active');
+  switchTab('preview');
+  setTimeout(() => previewPanel.play(), 80);
+});
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  log('Gerando APK... requer Android SDK + gomobile','warn');
+  setTimeout(()=>log('Execute: ./android/build.sh debug','info'),500);
+});
+
+// ------------------------------------------------------------------
+// Tab system
+// ------------------------------------------------------------------
+function switchTab(tab) {
+  document.getElementById('tab-scene').style.display   = tab === 'scene'   ? 'flex' : 'none';
+  document.getElementById('tab-preview').style.display = tab === 'preview' ? 'flex' : 'none';
+  if (tab === 'scene') resizeCanvas();
+}
+
+document.querySelectorAll('.tb-btn[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tb-btn[data-tab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    switchTab(btn.dataset.tab);
+  });
+});
 
 // ------------------------------------------------------------------
 // Canvas interaction
@@ -351,28 +376,6 @@ document.getElementById('confirm-add-entity').addEventListener('click',()=>{
 document.getElementById('new-entity-name').addEventListener('keydown',ev=>{ if(ev.key==='Enter') document.getElementById('confirm-add-entity').click(); });
 
 // ------------------------------------------------------------------
-// Tab system
-// ------------------------------------------------------------------
-document.querySelectorAll('.tb-btn[data-tab]').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.tb-btn[data-tab]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-  });
-});
-
-// ------------------------------------------------------------------
-// Play / Export APK buttons
-// ------------------------------------------------------------------
-document.getElementById('btn-play').addEventListener('click',()=>{
-  log('Compilando cena...','info');
-  setTimeout(()=>log('Execute: kora-run <scene.ks>','ok'),400);
-});
-document.getElementById('btn-export').addEventListener('click',()=>{
-  log('Gerando APK... requer Android SDK + gomobile','warn');
-  setTimeout(()=>log('Execute: ./android/build.sh debug','info'),500);
-});
-
-// ------------------------------------------------------------------
 // Theme toggle
 // ------------------------------------------------------------------
 (function(){
@@ -408,10 +411,7 @@ window.addEventListener('keydown', ev => {
   }
 });
 
-// Warn before leaving with unsaved changes
-window.addEventListener('beforeunload', ev => {
-  if (state.dirty) { ev.preventDefault(); ev.returnValue=''; }
-});
+window.addEventListener('beforeunload', ev => { if (state.dirty) { ev.preventDefault(); ev.returnValue=''; } });
 
 // ------------------------------------------------------------------
 // Seed scene
@@ -419,7 +419,7 @@ window.addEventListener('beforeunload', ev => {
 function seedScene() {
   const player=createEntity('Player','sprite');   player.x=0;  player.y=60;  player.color='#00e5a0';
   const ground=createEntity('Ground','tilemap');  ground.x=0;  ground.y=240; ground.w=340; ground.h=24; ground.color='#388bfd';
-  const cam=createEntity('MainCamera','camera');  cam.x=0;     cam.y=0;      cam.w=32; cam.h=32; cam.color='#e3b341';
+  const cam=createEntity('MainCamera','camera');  cam.x=0; cam.y=0; cam.w=32; cam.h=32; cam.color='#e3b341';
   state.entities.push(player,ground,cam);
   buildHierarchy(); log('Cena de exemplo carregada.','ok');
 }
@@ -431,4 +431,4 @@ resizeCanvas();
 state.cam.zoom=0.75;
 seedScene();
 render();
-log('Kora Editor v2 iniciado. Ctrl+S salvar · Ctrl+O abrir · Ctrl+N novo.','ok');
+log('Kora Editor v3 iniciado. F5 = Rodar Preview · Ctrl+S salvar · Ctrl+O abrir.','ok');
