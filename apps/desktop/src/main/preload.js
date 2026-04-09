@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Build APK
   buildAPK: (config) => ipcRenderer.invoke('build-apk', config),
 
-  // Eventos do renderer
+  // Eventos do renderer (escuta canais vindos do main process)
   on: (channel, func) => {
     const validChannels = [
       'menu:new-scene',
@@ -46,14 +46,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  // Versão do app
+  // Informações do app
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => process.platform
 })
 
-// Expor versão
+// Expor versões de runtime
 contextBridge.exposeInMainWorld('electronVersion', {
-  app: app.getVersion(),
   chrome: process.versions.chrome,
-  node: process.versions.node
+  node: process.versions.node,
+  electron: process.versions.electron
 })
