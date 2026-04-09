@@ -36,9 +36,11 @@ class AssetsPanel {
     /** @type {Map<string, Asset>} */
     this._assets = new Map();
     this._dragAssetId = null;
+    this._dbInitPromise = null;
 
     this._buildUI();
     this._bindCanvasDrop();
+    this._loadFromDB();
   }
 
   // ----------------------------------------------------------------
@@ -123,10 +125,40 @@ class AssetsPanel {
   }
 
   // ----------------------------------------------------------------
+  // IndexedDB
+  // ----------------------------------------------------------------
+
+  async _loadFromDB() {
+    this._dbInitPromise = this._dbInitPromise || AssetDB.init();
+    try {
+      const assets = await AssetDB.getAll();
+      for (const a of assets) {
+        this._assets.set(a.id, a);
+      }
+      this._log(`Recuperado ${assets.length} asset(s) do armazenamento.`, 'ok');
+      this._renderGrid();
+    } catch(err) {
+      console.error('Erro ao carregar assets do IndexedDB:', err);
+    }
+  }
+
+  async _saveToDB(asset) {
+    if (!this._dbInitPromise) this._dbInitPromise = AssetDB.init();
+    await this._dbInitPromise;
+    await AssetDB.add(asset);
+  }
+
+  async _deleteFromDB(id) {
+    if (!this._dbInitPromise) this._dbInitPromise = AssetDB.init();
+    await this._dbInitPromise;
+    await AssetDB.delete(id);
+  }
+
+  // ----------------------------------------------------------------
   // Import
   // ----------------------------------------------------------------
 
-  _importFiles(fileList) {
+  async _importFiles(fileList) {
     if (!fileList?.length) return;
     let imported = 0;
     for (const file of fileList) {
@@ -136,11 +168,15 @@ class AssetsPanel {
         this._log(`Formato não suportado: ${file.name}`, 'warn');
         continue;
       }
-      const id  = `asset_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-      const url = URL.createObjectURL(file);
-      const asset = { id, name: file.name, kind, url, size: file.size, ext };
+      // Para imagens e áudio, usar Blobs para salvar no IndexedDB
+      const data = await file.arrayBuffer();
+      const blob  = new Blob([data], { type: file.type || 'application/octet-stream' });
+      const url   = URL.createObjectURL(blob);
+      const id    = `asset_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+      const asset = { id, name: file.name, kind, url, size: file.size, ext, blob, contentType: file.type };
       this._assets.set(id, asset);
       imported++;
+      await this._saveToDB(asset);
       this._log(`Importado: ${file.name} (${kind})`, 'ok');
     }
     if (imported > 0) this._renderGrid();
@@ -208,9 +244,11 @@ class AssetsPanel {
     del.className = 'asset-delete';
     del.innerHTML = '×';
     del.title     = 'Remover asset';
-    del.addEventListener('click', ev => {
+    del.addEventListener('click', async ev => {
       ev.stopPropagation();
       URL.revokeObjectURL(asset.url);
+      asset.blob?.slice(); // Garbage collection hint
+      await this._deleteFromDB(asset.id);
       this._assets.delete(asset.id);
       this._log(`Removido: ${asset.name}`, 'warn');
       this._renderGrid();
