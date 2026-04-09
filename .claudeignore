@@ -1,0 +1,76 @@
+# ============================================================
+# .claudeignore — Kora Engine
+# Arquivos que Claude NÃO deve ler/modificar por padrão.
+# Segue a mesma sintaxe do .gitignore.
+# ============================================================
+
+# ------ Dependências e build artifacts ----------------------
+vendor/
+go.sum
+*.out
+*.test
+*.prof
+*.pprof
+dist/
+build/
+_build/
+android/bin/
+android/*.apk
+android/*.aab
+android/*.keystore
+*.aar
+*.so
+*.a
+
+# ------ Gerados automaticamente pelo compilador KScript ------
+compiler/generated/
+**/*.ks.go          # transpilados KScript → Go (não editar direto)
+
+# ------ Assets binários (não há valor em ler) ---------------
+assets/**/*.png
+assets/**/*.jpg
+assets/**/*.jpeg
+assets/**/*.gif
+assets/**/*.webp
+assets/**/*.svg
+assets/**/*.mp3
+assets/**/*.ogg
+assets/**/*.wav
+assets/**/*.ttf
+assets/**/*.otf
+templates/**/*.png
+templates/**/*.jpg
+templates/**/*.wav
+templates/**/*.mp3
+examples/**/*.png
+examples/**/*.jpg
+
+# ------ Segredos e chaves ----------------------------------
+.env
+.env.*
+!.env.example
+*.keystore
+*-key.json
+android/signing.properties
+android/google-services.json
+
+# ------ IDEs e sistema -------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ------ Logs e temporários ---------------------------------
+*.log
+tmp/
+.tmp/
+coverage/
+coverage.out
+coverage.html
+
+# ------ Documentação de terceiros (não é código nosso) ------
+docs/external/
+docs/vendor/

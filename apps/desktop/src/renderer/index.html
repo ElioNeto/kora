@@ -91,11 +91,6 @@
   #electron-titlebar .window-btn.maximize { background: #00ca4e; }
   #electron-titlebar .window-btn.close { background: #ff6056; }
 
-  /* Window controls for Linux */
-  body[data-platform="linux"] #electron-titlebar .window-controls {
-    order: 2;
-  }
-
   /* Menu Bar */
   #menu-bar {
     height: var(--eui-topbar-h);
@@ -547,6 +542,10 @@
     line-height: 1.7;
   }
 
+  .log-info  { color: #e6edf3; }
+  .log-warn  { color: #e3b341; }
+  .log-error { color: #f85149; }
+
   /* Modal */
   .modal-backdrop {
     position: fixed;
@@ -711,7 +710,7 @@
           <div class="vp-sep"></div>
           <span class="vp-info" id="vp-coords">x: 0  y: 0</span>
           <span class="vp-info" id="vp-zoom">100%</span>
-          <button class="vp-tool" id="btn-zoom-fit" title="Encaistrar">⎕</button>
+          <button class="vp-tool" id="btn-zoom-fit" title="Encaixar">⎕</button>
         </div>
         <canvas id="scene-canvas"></canvas>
       </div>
@@ -808,16 +807,13 @@
   <!-- Toast Notification -->
   <div id="toast" style="display: none;">Notificação</div>
 
-  <!-- Editor Scripts (do código existente) -->
-  <script src="../../editor/serializer.js"></script>
-  <script src="../../editor/assets-panel.js"></script>
-  <script src="../../editor/preview-panel.js"></script>
-
   <script>
-    // Electron API do preload
-    window.app = window.electronAPI || {}
+    // ─── Alias da API do Electron ────────────────────────────────────────────
+    // window.electronAPI é exposto pelo preload via contextBridge.
+    // window.app é apenas um atalho para não refatorar o resto do código.
+    const app = window.electronAPI || {}
 
-    // Console
+    // ─── Console ────────────────────────────────────────────────────────────
     const consoleBody = document.getElementById('console-body')
     function log(msg, type = 'info') {
       const line = document.createElement('div')
@@ -832,140 +828,128 @@
       consoleBody.innerHTML = ''
     })
 
-    // Menus
+    // ─── Menus ───────────────────────────────────────────────────────────────
     document.querySelectorAll('.menu-item').forEach(item => {
       item.addEventListener('click', (e) => {
         const action = e.target.dataset.action
-        switch (action) {
-          case 'file':
-            showToast('Arquivo: Nova, Abrir, Salvar, Exportar')
-            break
-          case 'edit':
-            showToast('Editar: Undo, Redo, Cut, Copy, Paste')
-            break
-          case 'view':
-            showToast('Exibir: Zoom In/Out, Reset, DevTools')
-            break
-          case 'help':
-            showToast('Ajuda: Documentação, Reportar Problema, Sobre')
-            break
+        const msgs = {
+          file: 'Arquivo: Nova, Abrir, Salvar, Exportar',
+          edit: 'Editar: Undo, Redo, Cut, Copy, Paste',
+          view: 'Exibir: Zoom In/Out, Reset, DevTools',
+          help: 'Ajuda: Documentação, Reportar Problema, Sobre'
         }
+        if (msgs[action]) showToast(msgs[action])
       })
     })
 
-    // Toolbar buttons
-    document.getElementById('btn-new').addEventListener('click', () => {
-      window.app.on('menu:new-scene', () => {
-        if (state.dirty && !confirm('Há alterações não salvas?')) return
-        state.entities = []
-        state.selected = null
-        log('Nova cena criada.')
-        render()
-      })
-    })
+    // ─── Escuta eventos de menu do processo principal ────────────────────────
+    // O main process envia IPC ao clicar no menu nativo do Electron.
+    // Registramos os listeners UMA VEZ aqui, não dentro de handlers de click.
+    if (app.on) {
+      app.on('menu:new-scene', () => newScene())
+      app.on('menu:open-scene', () => document.getElementById('btn-open').click())
+      app.on('menu:save-scene', () => document.getElementById('btn-save').click())
+      app.on('menu:export-ks', () => document.getElementById('btn-export-ks').click())
+    }
+
+    // ─── Ações da toolbar ────────────────────────────────────────────────────
+    function newScene() {
+      if (state.dirty && !confirm('Há alterações não salvas. Deseja continuar?')) return
+      state.entities = []
+      state.selected = null
+      state.dirty = false
+      buildHierarchy()
+      deselectAll()
+      render()
+      log('Nova cena criada.')
+      showToast('✅ Nova cena')
+    }
+
+    document.getElementById('btn-new').addEventListener('click', newScene)
 
     document.getElementById('btn-open').addEventListener('click', async () => {
-      const filePath = await window.app.selectFile({
+      if (!app.selectFile) return log('API de arquivo não disponível', 'warn')
+      const filePath = await app.selectFile({
         filters: [{ name: 'Cenas Kora', extensions: ['kora.json'] }]
       })
-      if (filePath) {
-        const { content, error } = await window.app.readFile(filePath)
-        if (error) {
-          log(`Erro ao abrir: ${error}`, 'error')
-          return
-        }
-        try {
-          const data = JSON.parse(content)
-          const { entities, meta } = Serializer.jsonToScene(data, nextId)
-          state.entities = entities
-          state.meta = meta
+      if (!filePath) return
+      const { content, error } = await app.readFile(filePath)
+      if (error) { log(`Erro ao abrir: ${error}`, 'error'); return }
+      try {
+        const data = JSON.parse(content)
+        if (data.entities) {
+          state.entities = data.entities
+          state.meta = data.meta || state.meta
           buildHierarchy()
           deselectAll()
-          log(`Cena carregada: ${meta.name}`)
+          render()
+          log(`Cena carregada: ${state.meta.name}`)
           showToast('✅ Cena carregada')
-        } catch (err) {
-          log(`Erro parse JSON: ${err.message}`, 'error')
         }
+      } catch (err) {
+        log(`Erro parse JSON: ${err.message}`, 'error')
       }
     })
 
     document.getElementById('btn-save').addEventListener('click', async (e) => {
-      const saveAs = e.shiftKey
-      const filePath = await window.app.saveScene(
-        Serializer.sceneToJSON(state.entities, state.meta),
-        `${state.meta.name || 'cena'}.kora.json`,
-        saveAs
-      )
+      if (!app.saveScene) { log('API de save não disponível', 'warn'); return }
+      const sceneData = JSON.stringify({ meta: state.meta, entities: state.entities }, null, 2)
+      const filePath = await app.saveScene(sceneData, `${state.meta.name || 'cena'}.kora.json`)
       if (filePath) {
         state.dirty = false
+        render()
         log(`Cena salva: ${filePath}`)
-        showToast('✅ Salvou!')
+        showToast('✅ Salvo!')
       }
     })
 
     document.getElementById('btn-export-ks').addEventListener('click', () => {
-      const src = Serializer.sceneToKScript(state.entities, state.meta.name)
-      window.app.selectFile({
-        filters: [{ name: 'KScript', extensions: ['ks'] }],
-        defaultPath: `${state.meta.name || 'game'}.ks`
-      }).then(async (filePath) => {
-        if (filePath) {
-          await window.app.writeFile(filePath, src)
-          log(`KScript exportado: ${filePath}`)
-          showToast('📄 KScript exportado')
-        }
-      })
+      log('Exportação KScript em breve.', 'warn')
+      showToast('📄 KScript — em breve')
     })
 
     document.getElementById('btn-export-apk').addEventListener('click', () => {
-      // Placeholder para exportar APK
-      log('A exportação APK será integrada com o build system.', 'warn')
+      log('A exportação APK será integrada com o build system Go.', 'warn')
       showToast('ℹ️ Build APK em breve')
     })
 
-    // Window controls
+    // ─── Window controls ─────────────────────────────────────────────────────
     document.getElementById('minimize-btn').addEventListener('click', () => {
-      window.electronAPI.minimize()
+      window.electronAPI?.minimize?.()
     })
 
     document.getElementById('maximize-btn').addEventListener('click', async () => {
+      if (!window.electronAPI?.isMaximized) return
       const isMaximized = await window.electronAPI.isMaximized()
-      if (isMaximized) {
-        await window.electronAPI.unmaximize()
-      } else {
-        await window.electronAPI.maximize()
-      }
+      isMaximized ? window.electronAPI.unmaximize?.() : window.electronAPI.maximize?.()
     })
 
     document.getElementById('close-btn').addEventListener('click', () => {
       window.close()
     })
 
-    // Toast
+    // ─── Toast ───────────────────────────────────────────────────────────────
     function showToast(msg) {
       const toast = document.getElementById('toast')
       toast.textContent = msg
       toast.style.display = 'block'
-      setTimeout(() => {
-        toast.style.display = 'none'
-      }, 2200)
+      setTimeout(() => { toast.style.display = 'none' }, 2200)
     }
 
-    // Modal
+    // ─── Modal Adicionar Entidade ─────────────────────────────────────────────
     const backdrop = document.getElementById('modal-backdrop')
     document.getElementById('btn-add-entity').addEventListener('click', () => {
       backdrop.style.display = 'grid'
       document.getElementById('new-entity-name').focus()
     })
-
-    document.getElementById('modal-close').addEventListener('click', () => {
-      backdrop.style.display = 'none'
+    document.getElementById('modal-close').addEventListener('click', () => { backdrop.style.display = 'none' })
+    document.getElementById('modal-cancel').addEventListener('click', () => { backdrop.style.display = 'none' })
+    document.querySelector('.modal-backdrop').addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-backdrop')) backdrop.style.display = 'none'
     })
-
-    document.getElementById('modal-cancel').addEventListener('click', () => {
-      backdrop.style.display = 'none'
+    document.getElementById('new-entity-name').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('modal-confirm').click()
     })
-
     document.getElementById('modal-confirm').addEventListener('click', () => {
       const name = document.getElementById('new-entity-name').value.trim() || 'Entity'
       const type = document.getElementById('new-entity-type').value
@@ -979,23 +963,10 @@
       render()
       log(`Adicionado: ${name} (${type})`)
     })
-
-    document.querySelector('.modal-backdrop').addEventListener('click', (e) => {
-      if (e.target.classList.contains('modal-backdrop')) {
-        backdrop.style.display = 'none'
-      }
-    })
-
-    document.getElementById('new-entity-name').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        document.getElementById('modal-confirm').click()
-      }
-    })
   </script>
 
-  <!-- Script principal (do editor.js, adaptado para Electron) -->
   <script>
-    // State
+    // ─── State ───────────────────────────────────────────────────────────────
     const state = {
       entities: [],
       selected: null,
@@ -1016,43 +987,31 @@
     const coordsEl = document.getElementById('vp-coords')
     const zoomEl = document.getElementById('vp-zoom')
 
-    // Assets Panel setup
-    const assetsPanelContainer = document.getElementById('assets-container')
-
     // Asset management
     const assets = new Map()
     let nextAssetId = 1
 
     document.getElementById('btn-import').addEventListener('click', async () => {
-      const filePaths = await window.app.selectFile({
-        filters: [{ name: 'All', extensions: ['*'] }],
+      if (!app.selectFile) return log('API de arquivo não disponível', 'warn')
+      const filePaths = await app.selectFile({
+        filters: [{ name: 'Imagens', extensions: ['png','jpg','jpeg','webp'] }],
         properties: ['openFile', 'multiSelections']
       })
-      if (filePaths) {
-        for (const filePath of filePaths) {
-          await loadAsset(filePath)
-        }
-        renderAssets()
-        log(`${filePaths.length} asset(s) importados`)
-      }
+      if (!filePaths) return
+      const list = Array.isArray(filePaths) ? filePaths : [filePaths]
+      for (const fp of list) await loadAsset(fp)
+      renderAssets()
+      log(`${list.length} asset(s) importados`)
     })
 
     async function loadAsset(filePath) {
       const fileName = filePath.split(/[\\/]/).pop()
       const ext = fileName.split('.').pop().toLowerCase()
       const id = `asset_${Date.now()}_${nextAssetId++}`
-
-      // Carregar como dataURL para imagens
-      if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'webp') {
-        const { content, error } = await window.app.readFile(filePath)
-        if (error) return
-
-        const url = URL.createObjectURL(
-          new Blob([new Uint8Array(content.split(',').map(c => parseInt(c, 16)))], { type: 'image/' + ext })
-        )
+      if (['png','jpg','jpeg','webp'].includes(ext)) {
+        const url = `file://${filePath}`
         assets.set(id, { id, url, fileName, ext, type: 'image' })
       } else {
-        // Para outros tipos
         assets.set(id, { id, fileName, ext, type: 'other' })
       }
     }
@@ -1061,27 +1020,21 @@
       const grid = document.getElementById('assets-grid')
       grid.innerHTML = ''
       document.getElementById('assets-count').textContent = `${assets.size} assets`
-
       assets.forEach(asset => {
         const card = document.createElement('div')
         card.className = 'asset-card'
         card.draggable = true
         card.dataset.id = asset.id
-        card.title = `${asset.fileName}\nArraste para a cena`
 
         const thumb = document.createElement('div')
         thumb.className = 'asset-thumb'
-
         if (asset.type === 'image') {
           const img = document.createElement('img')
           img.src = asset.url
           thumb.appendChild(img)
         } else {
+          thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:28px'
           thumb.textContent = '📄'
-          thumb.style.display = 'flex'
-          thumb.style.alignItems = 'center'
-          thumb.style.justifyContent = 'center'
-          thumb.style.fontSize = '28px'
         }
 
         const label = document.createElement('div')
@@ -1098,23 +1051,7 @@
           log(`Asset removido: ${asset.fileName}`)
         }
 
-        card.onclick = (e) => {
-          if (e.target !== deleteBtn) {
-            // Criar entidade ao clicar (não arrastando)
-            spawnEntityFromAsset(asset)
-          }
-        }
-
-        card.ondblclick = () => {
-          spawnEntityFromAsset(asset, 0, 0)
-        }
-
-        card.onmousedown = (e) => {
-          if (e.target !== deleteBtn) {
-            e.dataTransfer.setData('asset-id', asset.id)
-          }
-        }
-
+        card.onclick = (e) => { if (e.target !== deleteBtn) spawnEntityFromAsset(asset) }
         card.appendChild(thumb)
         card.appendChild(label)
         card.appendChild(deleteBtn)
@@ -1128,9 +1065,7 @@
       const e = createEntity(baseName, type)
       e.x = x ?? (Math.random() - 0.5) * 200
       e.y = y ?? (Math.random() - 0.5) * 200
-      if (asset.type === 'image') {
-        e.assetUrl = asset.url
-      }
+      if (asset.type === 'image') e.assetUrl = asset.url
       state.entities.push(e)
       selectEntity(e.id)
       buildHierarchy()
@@ -1139,27 +1074,18 @@
       log(`Entidade criada: ${baseName}`)
     }
 
-    // Setup canvas as drop target for assets
-    canvas.addEventListener('dragover', (e) => {
-      e.dataTransfer.dropEffect = 'copy'
-    })
-
-    canvas.addEventListener('drop', async (e) => {
+    canvas.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' })
+    canvas.addEventListener('drop', (e) => {
       e.preventDefault()
-      const rect = canvas.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / canvas.width * LOGICAL_W * state.cam.zoom -
-                 LOGICAL_W * state.cam.x * state.cam.zoom) / state.cam.zoom
-      const y = ((e.clientY - rect.top - 36) / canvas.height * LOGICAL_H * state.cam.zoom -
-                 LOGICAL_H * state.cam.y * state.cam.zoom) / state.cam.zoom
-
       const assetId = e.dataTransfer.getData('asset-id')
       if (assetId && assets.has(assetId)) {
-        const asset = assets.get(assetId)
-        spawnEntityFromAsset(asset, x, y)
+        const rect = canvas.getBoundingClientRect()
+        const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top)
+        spawnEntityFromAsset(assets.get(assetId), wx, wy)
       }
     })
 
-    // Resize canvas
+    // ─── Canvas resize ───────────────────────────────────────────────────────
     function resizeCanvas() {
       const parent = canvas.parentElement
       canvas.width = parent.clientWidth
@@ -1168,7 +1094,7 @@
     }
     window.addEventListener('resize', resizeCanvas)
 
-    // World screen functions
+    // ─── Coordinate helpers ──────────────────────────────────────────────────
     function worldToScreen(wx, wy) {
       const cx = canvas.width / 2 + state.cam.x * state.cam.zoom
       const cy = canvas.height / 2 + state.cam.y * state.cam.zoom
@@ -1181,14 +1107,12 @@
       return [(sx - cx) / state.cam.zoom, (sy - cy) / state.cam.zoom]
     }
 
-    // Render
+    // ─── Render ──────────────────────────────────────────────────────────────
     function render() {
       if (!canvas.parentElement) return
-
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       drawGrid()
 
-      // Draw scene bounds
       const [ox, oy] = worldToScreen(-LOGICAL_W / 2, -LOGICAL_H / 2)
       const pw = LOGICAL_W * state.cam.zoom, ph = LOGICAL_H * state.cam.zoom
       ctx.save()
@@ -1199,16 +1123,8 @@
       ctx.fillRect(ox, oy, pw, ph)
       ctx.restore()
 
-      // Draw entities
-      state.entities.forEach(e => {
-        if (e.visible) drawEntity(e)
-      })
-
-      // Selection
-      if (state.selected) {
-        const e = getEntity(state.selected)
-        if (e) drawSelection(e)
-      }
+      state.entities.forEach(e => { if (e.visible) drawEntity(e) })
+      if (state.selected) { const e = getEntity(state.selected); if (e) drawSelection(e) }
 
       zoomEl.textContent = Math.round(state.cam.zoom * 100) + '%'
       document.title = (state.dirty ? '● ' : '') + (state.meta.name || 'Untitled') + ' — Kora Editor'
@@ -1218,25 +1134,11 @@
       const STEP = 32 * state.cam.zoom
       const offX = (canvas.width / 2 + state.cam.x * state.cam.zoom) % STEP
       const offY = (canvas.height / 2 + state.cam.y * state.cam.zoom) % STEP
-
       ctx.save()
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)'
       ctx.lineWidth = 1
-
-      for (let x = offX; x < canvas.width; x += STEP) {
-        ctx.beginPath()
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, canvas.height)
-        ctx.stroke()
-      }
-
-      for (let y = offY; y < canvas.height; y += STEP) {
-        ctx.beginPath()
-        ctx.moveTo(0, y)
-        ctx.lineTo(canvas.width, y)
-        ctx.stroke()
-      }
-
+      for (let x = offX; x < canvas.width; x += STEP) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke() }
+      for (let y = offY; y < canvas.height; y += STEP) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke() }
       ctx.restore()
     }
 
@@ -1244,12 +1146,9 @@
     function drawEntity(e) {
       const [sx, sy] = worldToScreen(e.x, e.y)
       const sw = e.w * state.cam.zoom, sh = e.h * state.cam.zoom
-
       ctx.save()
       ctx.translate(sx, sy)
       ctx.rotate(e.rotation * Math.PI / 180)
-
-      // Draw sprite if available
       if (e.assetUrl) {
         if (!_imgCache[e.assetUrl]) {
           const img = new Image()
@@ -1258,21 +1157,15 @@
           _imgCache[e.assetUrl] = img
         }
         const img = _imgCache[e.assetUrl]
-        if (img && img.complete) {
-          ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh)
-        } else {
-          ctx.fillStyle = e.color + '99'
-          ctx.fillRect(-sw / 2, -sh / 2, sw, sh)
-        }
+        if (img && img.complete) { ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh) }
+        else { ctx.fillStyle = e.color + '99'; ctx.fillRect(-sw / 2, -sh / 2, sw, sh) }
       } else {
         ctx.fillStyle = e.color + '99'
         ctx.fillRect(-sw / 2, -sh / 2, sw, sh)
       }
-
       ctx.strokeStyle = e.color
       ctx.lineWidth = 1.5
       ctx.strokeRect(-sw / 2, -sh / 2, sw, sh)
-
       ctx.fillStyle = '#fff'
       ctx.font = `${Math.max(9, 11 * state.cam.zoom)}px Inter, sans-serif`
       ctx.textAlign = 'center'
@@ -1283,60 +1176,38 @@
     function drawSelection(e) {
       const [sx, sy] = worldToScreen(e.x, e.y)
       const sw = e.w * state.cam.zoom, sh = e.h * state.cam.zoom
-
       ctx.save()
       ctx.translate(sx, sy)
       ctx.rotate(e.rotation * Math.PI / 180)
-
       ctx.strokeStyle = '#00e5a0'
       ctx.lineWidth = 2
       ctx.setLineDash([4, 3])
       ctx.strokeRect(-sw / 2 - 2, -sh / 2 - 2, sw + 4, sh + 4)
       ctx.setLineDash([])
       ctx.fillStyle = '#00e5a0'
-
       for (const [hx, hy] of [
-        [-sw / 2 - 2, -sh / 2 - 2], [0, -sh / 2 - 2], [sw / 2 + 2, -sh / 2 - 2],
-        [sw / 2 + 2, 0], [sw / 2 + 2, sh / 2 + 2], [0, sh / 2 + 2],
-        [-sw / 2 - 2, sh / 2 + 2], [-sw / 2 - 2, 0]
-      ]) {
-        ctx.beginPath()
-        ctx.arc(hx, hy, 3.5, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
+        [-sw/2-2,-sh/2-2],[0,-sh/2-2],[sw/2+2,-sh/2-2],
+        [sw/2+2,0],[sw/2+2,sh/2+2],[0,sh/2+2],
+        [-sw/2-2,sh/2+2],[-sw/2-2,0]
+      ]) { ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2); ctx.fill() }
       ctx.restore()
     }
 
-    // Entities
+    // ─── Entities ────────────────────────────────────────────────────────────
     function getEntity(id) { return state.entities.find(e => e.id === id) }
     function nextId() { return state.idSeq++ }
 
     function createEntity(name, type) {
-      return {
-        id: nextId(),
-        name,
-        type,
-        x: 0,
-        y: 0,
-        w: 48,
-        h: 48,
-        rotation: 0,
-        visible: true,
-        locked: false,
-        color: randomColor(),
-        script: '',
-        assetUrl: null
-      }
+      return { id: nextId(), name, type, x: 0, y: 0, w: 48, h: 48, rotation: 0,
+               visible: true, locked: false, color: randomColor(), script: '', assetUrl: null }
     }
 
     function randomColor() {
-      return ['#00e5a0', '#388bfd', '#e3b341', '#f85149', '#bc8cff', '#ff7b72', '#79c0ff'][
-        Math.floor(Math.random() * 7)
-      ]
+      return ['#00e5a0','#388bfd','#e3b341','#f85149','#bc8cff','#ff7b72','#79c0ff'][
+        Math.floor(Math.random() * 7)]
     }
 
-    // Hierarchy
+    // ─── Hierarchy ───────────────────────────────────────────────────────────
     const ENTITY_ICONS = { sprite: '🟦', tilemap: '🔲', camera: '📷', audio: '🔊', custom: '⬡' }
 
     function buildHierarchy() {
@@ -1350,23 +1221,17 @@
           <span class="entity-name">${e.name}</span>
           <button class="entity-visibility">${e.visible ? '👁' : '🚫'}</button>
         `
-
         li.onclick = (ev) => {
           if (ev.target.classList.contains('entity-visibility')) {
-            e.visible = !e.visible
-            state.dirty = true
-            buildHierarchy()
-            render()
-            return
+            e.visible = !e.visible; state.dirty = true; buildHierarchy(); render(); return
           }
           selectEntity(e.id)
         }
-
         hierarchyEl.appendChild(li)
       })
     }
 
-    // Selection
+    // ─── Selection ───────────────────────────────────────────────────────────
     function selectEntity(id) {
       state.selected = id
       buildHierarchy()
@@ -1381,67 +1246,34 @@
       render()
     }
 
-    // Inspector
+    // ─── Inspector ───────────────────────────────────────────────────────────
     function buildInspector(e) {
-      if (!e) {
-        inspectorEl.innerHTML = '<p class="inspector-empty">Selecione uma entidade</p>'
-        return
-      }
+      if (!e) { inspectorEl.innerHTML = '<p class="inspector-empty">Selecione uma entidade</p>'; return }
 
       const assetRow = e.assetUrl
-        ? `<div class="prop-row"><span class="prop-label">Asset</span><span style="font-size:11px;color:var(--color-primary)">${e.assetUrl.split('/').pop()}</span></div>`
+        ? `<div class="prop-row"><span class="prop-label">Asset</span><span style="font-size:11px;color:#00e5a0">${e.assetUrl.split('/').pop()}</span></div>`
         : ''
 
       inspectorEl.innerHTML = `
         <div class="inspector-section">
           <div class="inspector-section-title">Identidade</div>
-          <div class="prop-row">
-            <span class="prop-label">Nome</span>
-            <input class="prop-input" data-prop="name" value="${e.name}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Tipo</span>
-            <input class="prop-input" value="${e.type}" disabled>
-          </div>
+          <div class="prop-row"><span class="prop-label">Nome</span><input class="prop-input" data-prop="name" value="${e.name}"></div>
+          <div class="prop-row"><span class="prop-label">Tipo</span><input class="prop-input" value="${e.type}" disabled></div>
           ${assetRow}
         </div>
         <div class="inspector-section">
           <div class="inspector-section-title">Transform</div>
-          <div class="prop-row">
-            <span class="prop-label">X</span>
-            <input class="prop-input" type="number" data-prop="x" value="${e.x}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Y</span>
-            <input class="prop-input" type="number" data-prop="y" value="${e.y}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Largura</span>
-            <input class="prop-input" type="number" data-prop="w" value="${e.w}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Altura</span>
-            <input class="prop-input" type="number" data-prop="h" value="${e.h}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Rotação</span>
-            <input class="prop-input" type="number" data-prop="rotation" value="${e.rotation}">
-          </div>
+          <div class="prop-row"><span class="prop-label">X</span><input class="prop-input" type="number" data-prop="x" value="${e.x}"></div>
+          <div class="prop-row"><span class="prop-label">Y</span><input class="prop-input" type="number" data-prop="y" value="${e.y}"></div>
+          <div class="prop-row"><span class="prop-label">Largura</span><input class="prop-input" type="number" data-prop="w" value="${e.w}"></div>
+          <div class="prop-row"><span class="prop-label">Altura</span><input class="prop-input" type="number" data-prop="h" value="${e.h}"></div>
+          <div class="prop-row"><span class="prop-label">Rotação</span><input class="prop-input" type="number" data-prop="rotation" value="${e.rotation}"></div>
         </div>
         <div class="inspector-section">
           <div class="inspector-section-title">Visual</div>
-          <div class="prop-row">
-            <span class="prop-label">Cor</span>
-            <input class="prop-color" type="color" data-prop="color" value="${e.color}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Visível</span>
-            <input class="prop-checkbox" type="checkbox" data-prop="visible" ${e.visible ? 'checked' : ''}>
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">Travado</span>
-            <input class="prop-checkbox" type="checkbox" data-prop="locked" ${e.locked ? 'checked' : ''}>
-          </div>
+          <div class="prop-row"><span class="prop-label">Cor</span><input class="prop-color" type="color" data-prop="color" value="${e.color}"></div>
+          <div class="prop-row"><span class="prop-label">Visível</span><input class="prop-checkbox" type="checkbox" data-prop="visible" ${e.visible ? 'checked' : ''}></div>
+          <div class="prop-row"><span class="prop-label">Travado</span><input class="prop-checkbox" type="checkbox" data-prop="locked" ${e.locked ? 'checked' : ''}></div>
         </div>
         <div class="inspector-section">
           <div class="inspector-section-title">Script KScript</div>
@@ -1462,7 +1294,6 @@
           if (input.type === 'checkbox') e[prop] = input.checked
           else if (input.type === 'number') e[prop] = parseFloat(input.value) || 0
           else e[prop] = input.value
-
           if (prop === 'name') buildHierarchy()
           state.dirty = true
           render()
@@ -1470,13 +1301,7 @@
       })
 
       inspectorEl.querySelector('#btn-duplicate')?.addEventListener('click', () => {
-        const copy = {
-          ...e,
-          id: nextId(),
-          name: e.name + '_copy',
-          x: e.x + 16,
-          y: e.y + 16
-        }
+        const copy = { ...e, id: nextId(), name: e.name + '_copy', x: e.x + 16, y: e.y + 16 }
         state.entities.push(copy)
         selectEntity(copy.id)
         buildHierarchy()
@@ -1493,109 +1318,66 @@
       })
     }
 
-    // Keyboard
+    // ─── Keyboard ────────────────────────────────────────────────────────────
     window.addEventListener('keydown', ev => {
       const inInput = ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA'
-
       if (ev.ctrlKey || ev.metaKey) {
-        if (ev.key === 's') {
-          ev.preventDefault()
-          document.getElementById('btn-save').click()
-          return
-        }
-        if (ev.key === 'o') {
-          ev.preventDefault()
-          document.getElementById('btn-open').click()
-          return
-        }
-        if (ev.key === 'n') {
-          ev.preventDefault()
-          document.getElementById('btn-new').click()
-          return
-        }
+        if (ev.key === 's') { ev.preventDefault(); document.getElementById('btn-save').click(); return }
+        if (ev.key === 'o') { ev.preventDefault(); document.getElementById('btn-open').click(); return }
+        if (ev.key === 'n') { ev.preventDefault(); newScene(); return }
       }
-
       if (inInput) return
-
       switch (ev.key) {
-        case 'v':
-        case 'V':
-          document.querySelector('[data-tool="select"]').click()
-          break
-        case 'g':
-        case 'G':
-          document.querySelector('[data-tool="move"]').click()
-          break
-        case 'f':
-        case 'F':
-          document.getElementById('btn-zoom-fit').click()
-          break
-        case 'Delete':
-        case 'Backspace':
+        case 'v': case 'V': document.querySelector('[data-tool="select"]').click(); break
+        case 'g': case 'G': document.querySelector('[data-tool="move"]').click(); break
+        case 'f': case 'F': document.getElementById('btn-zoom-fit').click(); break
+        case 'Delete': case 'Backspace':
           if (state.selected) {
             const e = getEntity(state.selected)
             const idx = state.entities.findIndex(en => en.id === state.selected)
-            if (idx >= 0) {
-              state.entities.splice(idx, 1)
-              deselectAll()
-              state.dirty = true
-              log(`Excluído: ${e?.name}`)
-            }
+            if (idx >= 0) { state.entities.splice(idx, 1); deselectAll(); state.dirty = true; log(`Excluído: ${e?.name}`) }
           }
           break
-        case 'Escape':
-          deselectAll()
-          break
+        case 'Escape': deselectAll(); break
       }
     })
 
-    // Canvas interaction
+    // ─── Canvas interaction ───────────────────────────────────────────────────
     canvas.addEventListener('mousemove', ev => {
       const r = canvas.getBoundingClientRect()
-      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top + 36)
+      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top)
       coordsEl.textContent = `x: ${Math.round(wx)}  y: ${Math.round(wy)}`
-
       if (state.drag) {
         const e = getEntity(state.drag.entityId)
-        if (e && !e.locked) {
-          e.x = Math.round(wx - state.drag.ox)
-          e.y = Math.round(wy - state.drag.oy)
-          state.dirty = true
-          render()
-        }
+        if (e && !e.locked) { e.x = Math.round(wx - state.drag.ox); e.y = Math.round(wy - state.drag.oy); state.dirty = true; render() }
       }
     })
 
     canvas.addEventListener('mousedown', ev => {
       const r = canvas.getBoundingClientRect()
-      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top + 36)
-
+      const [wx, wy] = screenToWorld(ev.clientX - r.left, ev.clientY - r.top)
       const hit = [...state.entities].reverse().find(e => {
         if (!e.visible || e.locked) return false
         const hw = e.w / 2, hh = e.h / 2
         return wx >= e.x - hw && wx <= e.x + hw && wy >= e.y - hh && wy <= e.y + hh
       })
-
       if (hit) {
         selectEntity(hit.id)
         if (state.tool === 'select' || state.tool === 'move') {
           state.drag = { entityId: hit.id, ox: wx - hit.x, oy: wy - hit.y }
         }
-      } else {
-        deselectAll()
-      }
+      } else { deselectAll() }
     })
 
     canvas.addEventListener('mouseup', () => { state.drag = null })
     canvas.addEventListener('mouseleave', () => { state.drag = null })
-
     canvas.addEventListener('wheel', ev => {
       ev.preventDefault()
       state.cam.zoom = Math.min(4, Math.max(0.1, state.cam.zoom * (ev.deltaY > 0 ? 0.9 : 1.1)))
       render()
     }, { passive: false })
 
-    // Tools
+    // ─── Ferramentas ─────────────────────────────────────────────────────────
     document.querySelectorAll('.vp-tool[data-tool]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.vp-tool[data-tool]').forEach(b => b.classList.remove('active'))
@@ -1605,60 +1387,28 @@
     })
 
     document.getElementById('btn-zoom-fit').addEventListener('click', () => {
-      state.cam = {
-        x: 0,
-        y: 0,
-        zoom: Math.min(canvas.width / LOGICAL_W, canvas.height / LOGICAL_H) * 0.85
-      }
+      state.cam = { x: 0, y: 0, zoom: Math.min(canvas.width / LOGICAL_W, canvas.height / LOGICAL_H) * 0.85 }
       render()
     })
 
-    // Tab switching
-    // (Simplified for Electron - always show scene)
-    // In full version, could add tabs for assets, preview
-
-    // Seed scene
+    // ─── Seed / Init ──────────────────────────────────────────────────────────
     function seedScene() {
       const player = createEntity('Player', 'sprite')
-      player.x = 0
-      player.y = 60
-      player.color = '#00e5a0'
-
+      player.x = 0; player.y = 60; player.color = '#00e5a0'
       const ground = createEntity('Ground', 'tilemap')
-      ground.x = 0
-      ground.y = 240
-      ground.w = 340
-      ground.h = 24
-      ground.color = '#388bfd'
-
+      ground.x = 0; ground.y = 240; ground.w = 340; ground.h = 24; ground.color = '#388bfd'
       const cam = createEntity('MainCamera', 'camera')
-      cam.x = 0
-      cam.y = 0
-      cam.w = 32
-      cam.h = 32
-      cam.color = '#e3b341'
-
+      cam.x = 0; cam.y = 0; cam.w = 32; cam.h = 32; cam.color = '#e3b341'
       state.entities.push(player, ground, cam)
       buildHierarchy()
       log('Cena de exemplo carregada.')
     }
 
-    // Init
     resizeCanvas()
     state.cam.zoom = 0.75
     seedScene()
     render()
-    log('Kora Editor v0.1.0 — Desktop')
-  </script>
-
-  <script>
-    // Theme toggle
-    (function(){
-      const btn=document.querySelector('[data-theme-toggle]'),root=document.documentElement;
-      let dark=root.getAttribute('data-theme')!=='light';
-      function apply(){root.setAttribute('data-theme',dark?'dark':'light');}
-      window.addEventListener('DOMContentLoaded',()=>{apply();});
-    })();
+    log('Kora Editor v0.1.0 — Desktop (Electron)')
   </script>
 </body>
 </html>
