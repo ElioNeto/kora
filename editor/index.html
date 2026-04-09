@@ -26,8 +26,13 @@
     <button class="tb-btn" data-tab="code">Script</button>
   </div>
   <div class="topbar-right">
-    <button class="tb-btn" id="btn-play" title="Rodar (F5)">▶ Rodar</button>
-    <button class="tb-btn" id="btn-export" title="Exportar APK">⬇ APK</button>
+    <button class="tb-btn" id="btn-new"    title="Nova cena (Ctrl+N)">&#43; Nova</button>
+    <button class="tb-btn" id="btn-open"   title="Abrir cena (Ctrl+O)">&#128194; Abrir</button>
+    <button class="tb-btn" id="btn-save"   title="Salvar JSON (Ctrl+S)">&#128190; Salvar</button>
+    <button class="tb-btn" id="btn-export-ks" title="Exportar KScript">&#128196; .ks</button>
+    <div class="vp-sep" style="margin:0 4px"></div>
+    <button class="tb-btn" id="btn-play"   title="Rodar (F5)">&#9654; Rodar</button>
+    <button class="tb-btn" id="btn-export" title="Exportar APK">&#11015; APK</button>
     <button class="tb-icon" data-theme-toggle aria-label="Alternar tema">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
     </button>
@@ -50,12 +55,12 @@
   <main class="viewport">
     <div class="viewport-toolbar">
       <button class="vp-tool active" data-tool="select" title="Selecionar (V)">&#9654;</button>
-      <button class="vp-tool" data-tool="move"   title="Mover (G)">✥</button>
-      <button class="vp-tool" data-tool="scale"  title="Escala (S)">⤡</button>
+      <button class="vp-tool" data-tool="move"   title="Mover (G)">&#10021;</button>
+      <button class="vp-tool" data-tool="scale"  title="Escala (S)">&#10529;</button>
       <div class="vp-sep"></div>
       <span class="vp-info" id="vp-coords">x: 0  y: 0</span>
       <span class="vp-info" id="vp-zoom">100%</span>
-      <button class="vp-tool" id="btn-zoom-fit" title="Encaixar (F)">⊞</button>
+      <button class="vp-tool" id="btn-zoom-fit" title="Encaixar (F)">&#8862;</button>
     </div>
     <canvas id="scene-canvas"></canvas>
     <div class="canvas-overlay" id="canvas-overlay"></div>
@@ -63,7 +68,9 @@
 
   <!-- ---- INSPECTOR PANEL ---- -->
   <aside class="panel panel-inspector" id="inspector">
-    <div class="panel-header"><span>Inspetor</span></div>
+    <div class="panel-header">
+      <span id="inspector-title">Inspetor</span>
+    </div>
     <div class="inspector-body" id="inspector-body">
       <p class="inspector-empty">Selecione uma entidade</p>
     </div>
@@ -108,6 +115,10 @@
   </div>
 </div>
 
+<!-- Save confirmation toast -->
+<div id="toast" class="toast" hidden></div>
+
+<script src="serializer.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>
