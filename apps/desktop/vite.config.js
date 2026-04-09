@@ -8,23 +8,17 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
     rollupOptions: {
-      entry: {
-        index: path.resolve(__dirname, 'src/renderer/index.html')
-      }
-    }
+      input: {
+        index: path.resolve(__dirname, 'src/renderer/index.html'),
+      },
+    },
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src/renderer')
-    }
-  },
-  css: {
-    modules: {
-      localsConvention: 'camelCase'
-    }
+      '@': path.resolve(__dirname, 'src/renderer'),
+    },
   },
   server: {
     port: 5173,
-    open: false
-  }
+  },
 })
