@@ -82,7 +82,7 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
-// World ↔ screen
+// World ↔ screen (defined before being used)
 function worldToScreen(wx, wy) {
   const cx = canvas.width  / 2 + state.cam.x * state.cam.zoom;
   const cy = canvas.height / 2 + state.cam.y * state.cam.zoom;

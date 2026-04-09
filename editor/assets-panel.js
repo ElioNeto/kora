@@ -133,6 +133,10 @@ class AssetsPanel {
     try {
       const assets = await AssetDB.getAll();
       for (const a of assets) {
+        // Recreate blob URL for each loaded asset
+        if (a.blob) {
+          a.url = URL.createObjectURL(a.blob);
+        }
         this._assets.set(a.id, a);
       }
       this._log(`Recuperado ${assets.length} asset(s) do armazenamento.`, 'ok');
