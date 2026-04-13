@@ -1,60 +1,49 @@
 package async
 
 // ----------------------------------------------------------------------------
-// Tween — interpolate values over time
+// Vector2 — position/velocity helper
 // ----------------------------------------------------------------------------
 
-// EaseFunc computes an easing value from 0 to 1.
-type EaseFunc func(t float64) float64
-
-// EaseNone is a linear interpolation (no easing).
-func EaseNone(t float64) float64 {
-	return t
+// Vec2 is a 2D vector with convenience methods for common game operations.
+type Vec2 struct {
+	X, Y float64
 }
 
-// EaseInQuad eases in with a quadratic curve.
-func EaseInQuad(t float64) float64 {
-	return t * t
+// Add returns a new vector with component-wise addition.
+func (v Vec2) Add(o Vec2) Vec2 {
+	return Vec2{v.X + o.X, v.Y + o.Y}
 }
 
-// EaseOutQuad eases out with a quadratic curve.
-func EaseOutQuad(t float64) float64 {
-	return t * (2 - t)
+// Sub returns a new vector with component-wise subtraction.
+func (v Vec2) Sub(o Vec2) Vec2 {
+	return Vec2{v.X - o.X, v.Y - o.Y}
 }
 
-// EaseInOutQuad eases in and out with a quadratic curve.
-func EaseInOutQuad(t float64) float64 {
-	if t < 0.5 {
-		return 2 * t * t
+// Mul returns a new vector scaled by a scalar.
+func (v Vec2) Mul(s float64) Vec2 {
+	return Vec2{v.X * s, v.Y * s}
+}
+
+// Len returns the Euclidean length of the vector.
+func (v Vec2) Len() float64 {
+	return v.X*v.X + v.Y*v.Y
+}
+
+// Normalized returns a unit vector in the same direction.
+func (v Vec2) Normalized() Vec2 {
+	l := v.Len()
+	if l == 0 {
+		return Vec2{}
 	}
-	return 1 - (-2*t + 2)*(-2*t + 2) / 2
+	return Vec2{v.X / l, v.Y / l}
 }
 
-// Tween interpolates a value from `from` to `to` over `duration` using `ease`.
-type Tween struct {
-	from     float64
-	to       float64
-	duration float64
-	elapsed  float64
-	ease     EaseFunc
+// Dot returns the dot product of v and o.
+func (v Vec2) Dot(o Vec2) float64 {
+	return v.X*o.X + v.Y*o.Y
 }
 
-// Tween creates a tween that will interpolate from `from` to `to` over `duration` seconds.
-func Tween(from, to, duration float64, ease EaseFunc) *Tween {
-	return &Tween{
-		from:     from,
-		to:       to,
-		duration: duration,
-		elapsed:  0,
-		ease:     ease,
-	}
-}
-
-// Tick advances the tween by `dt` seconds and returns its current value.
-func (t *Tween) Tick(dt float64) float64 {
-	t.elapsed += dt
-	if t.elapsed >= t.duration {
-		return t.to
-	}
-	return t.from + (t.to-t.from)*t.ease(t.elapsed/t.duration)
+// Cross returns the 2D cross product (scalar z-component).
+func (v Vec2) Cross(o Vec2) float64 {
+	return v.X*o.Y - v.Y*o.X
 }
