@@ -63,9 +63,8 @@ type SceneFactory func(s *scene.Scene)
 // Game is the central game object. Create one with New, then call Run.
 type Game struct {
 	cfg     Config
-	scene   *scene.Scene
+	tree    *scene.SceneTree  // SceneTree orchestrates the game loop
 	renderer *render.Renderer
-	pending SceneFactory // non-nil when a transition is requested
 	fade    scene.FadeState
 	ticks   uint64
 }
@@ -74,8 +73,9 @@ type Game struct {
 func New(cfg Config, initial SceneFactory) *Game {
 	cfg.apply()
 	g := &Game{cfg: cfg}
-	g.scene = scene.New()
-	initial(g.scene)
+	g.tree = scene.NewSceneTree()
+	g.tree.SetCurrentScene(scene.New())
+	initial(g.tree.GetCurrentScene())
 	return g
 }
 
@@ -102,23 +102,8 @@ func (g *Game) Update() error {
 	// Input must be sampled first.
 	input.Update()
 
-	// Fade transition tick.
-	if g.fade.Active() {
-		g.fade.Tick(dt)
-		return nil // freeze world during transition
-	}
-
-	// Scene switch committed after fade-out.
-	if g.pending != nil {
-		g.scene.DestroyAll()
-		g.scene = scene.New()
-		g.pending(g.scene)
-		g.pending = nil
-		g.fade.FadeIn(0.3, nil)
-	}
-
-	// Normal world update.
-	g.scene.Update(dt)
+	// SceneTree Tick drives the entire game loop (physics + logic).
+	g.tree.Tick(dt)
 	return nil
 }
 
@@ -127,13 +112,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.renderer = render.NewRenderer(screen)
 	g.renderer.Clear(g.cfg.ClearColor)
 
-	// Draw all scene entities.
-	g.scene.Draw(g.renderer)
-
-	// Fade overlay.
-	if g.fade.Active() || g.fade.Alpha > 0 {
-		drawFade(screen, g.fade.Alpha, g.cfg.Width, g.cfg.Height)
-	}
+	// SceneTree Draw renders everything (runs even when paused).
+	g.tree.Draw(screen)
 
 	// Debug overlay.
 	if g.cfg.DebugOverlay {
@@ -150,15 +130,21 @@ func (g *Game) Layout(_, _ int) (int, int) {
 // Scene transitions
 // ----------------------------------------------------------------------------
 
-// GotoScene requests a scene change with a fade transition.
-// The current scene is kept alive until the fade-out completes.
+// GotoScene requests a scene change.
 func (g *Game) GotoScene(factory SceneFactory) {
-	g.pending = factory
-	g.fade.FadeOut(0.3, nil)
+	scene := scene.New()
+	factory(scene)
+	g.tree.RegisterScene("next", scene)
+	g.tree.ChangeScene("next")
 }
 
 // Scene returns the currently active scene (read-only use recommended).
-func (g *Game) Scene() *scene.Scene { return g.scene }
+func (g *Game) Scene() *scene.Scene {
+	if g.tree == nil {
+		return nil
+	}
+	return g.tree.GetCurrentScene()
+}
 
 // Renderer returns the most recent Renderer (valid during Draw only).
 func (g *Game) Renderer() *render.Renderer { return g.renderer }
@@ -185,12 +171,13 @@ func (g *Game) drawDebug() {
 	if g.renderer == nil {
 		return
 	}
+	scene := g.tree.GetCurrentScene()
 	msg := fmt.Sprintf(
 		"FPS: %0.1f  TPS: %0.1f\nEntities: %d  Tasks: %d  Tick: %d",
 		ebiten.ActualFPS(),
 		ebiten.ActualTPS(),
-		g.scene.Count(),
-		g.scene.Scheduler().Len(),
+		scene.Count(),
+		scene.Scheduler().Len(),
 		g.ticks,
 	)
 	g.renderer.DrawDebugText(4, 4, msg)

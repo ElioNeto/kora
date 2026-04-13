@@ -141,6 +141,19 @@ func (s *Scene) Draw(r interface{}) {
 	}
 }
 
+// PhysicsUpdate calls PhysicsUpdate(dt) on every living PhysicsNode.
+// This is called separately from Update to allow for fixed timestep physics.
+func (s *Scene) PhysicsUpdate(dt float64) {
+	for _, e := range s.entities {
+		if !e.IsAlive() {
+			continue
+		}
+		if p, ok := e.(PhysicsNode); ok {
+			p.PhysicsUpdate(dt)
+		}
+	}
+}
+
 // ----------------------------------------------------------------------------
 // Query
 // ----------------------------------------------------------------------------

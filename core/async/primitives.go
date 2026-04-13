@@ -1,103 +1,60 @@
 package async
 
-// WaitTask pauses execution for a given duration.
-type WaitTask struct {
-	remaining float64
+// ----------------------------------------------------------------------------
+// Tween — interpolate values over time
+// ----------------------------------------------------------------------------
+
+// EaseFunc computes an easing value from 0 to 1.
+type EaseFunc func(t float64) float64
+
+// EaseNone is a linear interpolation (no easing).
+func EaseNone(t float64) float64 {
+	return t
 }
 
-// Wait creates a task that completes after `seconds`.
-func Wait(seconds float64) *WaitTask {
-	return &WaitTask{remaining: seconds}
+// EaseInQuad eases in with a quadratic curve.
+func EaseInQuad(t float64) float64 {
+	return t * t
 }
 
-func (t *WaitTask) Tick(dt float64) Status {
-	t.remaining -= dt
-	if t.remaining <= 0 {
-		return Done
+// EaseOutQuad eases out with a quadratic curve.
+func EaseOutQuad(t float64) float64 {
+	return t * (2 - t)
+}
+
+// EaseInOutQuad eases in and out with a quadratic curve.
+func EaseInOutQuad(t float64) float64 {
+	if t < 0.5 {
+		return 2 * t * t
 	}
-	return Running
+	return 1 - (-2*t + 2)*(-2*t + 2) / 2
 }
 
-// FrameTask pauses execution for a number of frames.
-type FrameTask struct {
-	remaining int
+// Tween interpolates a value from `from` to `to` over `duration` using `ease`.
+type Tween struct {
+	from     float64
+	to       float64
+	duration float64
+	elapsed  float64
+	ease     EaseFunc
 }
 
-// WaitFrames creates a task that completes after `n` frames.
-func WaitFrames(n int) *FrameTask {
-	return &FrameTask{remaining: n}
-}
-
-func (t *FrameTask) Tick(_ float64) Status {
-	t.remaining--
-	if t.remaining <= 0 {
-		return Done
+// Tween creates a tween that will interpolate from `from` to `to` over `duration` seconds.
+func Tween(from, to, duration float64, ease EaseFunc) *Tween {
+	return &Tween{
+		from:     from,
+		to:       to,
+		duration: duration,
+		elapsed:  0,
+		ease:     ease,
 	}
-	return Running
 }
 
-// RaceTask completes as soon as any of its children finishes.
-type RaceTask struct {
-	tasks []Task
-}
-
-// Race creates a task that finishes when the first child task finishes.
-func Race(tasks ...Task) *RaceTask {
-	return &RaceTask{tasks: tasks}
-}
-
-func (t *RaceTask) Tick(dt float64) Status {
-	for _, child := range t.tasks {
-		if child.Tick(dt) == Done {
-			return Done
-		}
+// Tick advances the tween by `dt` seconds and returns its current value.
+func (t *Tween) Tick(dt float64) float64 {
+	t.elapsed += dt
+	if t.elapsed >= t.duration {
+		return t.to
 	}
-	return Running
-}
-
-// AllTask completes when every child task is done.
-type AllTask struct {
-	tasks []Task
-}
-
-// All creates a task that finishes when all children finish.
-func All(tasks ...Task) *AllTask {
-	return &AllTask{tasks: tasks}
-}
-
-func (t *AllTask) Tick(dt float64) Status {
-	done := 0
-	for _, child := range t.tasks {
-		if child.Tick(dt) == Done {
-			done++
-		}
-	}
-	if done == len(t.tasks) {
-		return Done
-	}
-	return Running
-}
-
-// SignalTask completes when a named signal is emitted on a target.
-type SignalTask struct {
-	targetID string
-	name     string
-	triggered bool
-}
-
-// WaitSignal creates a task waiting for `name` on the object with `targetID`.
-func WaitSignal(targetID, name string) *SignalTask {
-	return &SignalTask{targetID: targetID, name: name}
-}
-
-// Trigger is called by the signal bus when the signal fires.
-func (t *SignalTask) Trigger() {
-	t.triggered = true
-}
-
-func (t *SignalTask) Tick(_ float64) Status {
-	if t.triggered {
-		return Done
-	}
-	return Running
+	return t.from + (t.to-t.from)*t.ease(t.elapsed/t.duration)
 }

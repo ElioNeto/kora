@@ -25,67 +25,6 @@ func (t *seqTask) Tick(dt float64) Status {
 }
 
 // ----------------------------------------------------------------------------
-// Race — complete when the FIRST task finishes
-// ----------------------------------------------------------------------------
-
-type raceTask struct {
-	tasks []Task
-	done  bool
-}
-
-// Race returns a Task that completes as soon as any one of its children does.
-func Race(tasks ...Task) Task {
-	return &raceTask{tasks: tasks}
-}
-
-func (t *raceTask) Tick(dt float64) Status {
-	if t.done {
-		return Done
-	}
-	for _, child := range t.tasks {
-		if child.Tick(dt) == Done {
-			t.done = true
-			return Done
-		}
-	}
-	return Running
-}
-
-// ----------------------------------------------------------------------------
-// All — complete when ALL tasks finish
-// ----------------------------------------------------------------------------
-
-type allTask struct {
-	tasks   []Task
-	finished []bool
-}
-
-// All returns a Task that completes only after every child finishes.
-func All(tasks ...Task) Task {
-	return &allTask{
-		tasks:    tasks,
-		finished: make([]bool, len(tasks)),
-	}
-}
-
-func (t *allTask) Tick(dt float64) Status {
-	allDone := true
-	for i, child := range t.tasks {
-		if !t.finished[i] {
-			if child.Tick(dt) == Done {
-				t.finished[i] = true
-			} else {
-				allDone = false
-			}
-		}
-	}
-	if allDone {
-		return Done
-	}
-	return Running
-}
-
-// ----------------------------------------------------------------------------
 // Repeat — run a task N times (0 = forever)
 // ----------------------------------------------------------------------------
 
@@ -123,8 +62,8 @@ func (t *repeatTask) Tick(dt float64) Status {
 // ----------------------------------------------------------------------------
 
 type delayTask struct {
-	delay float64
-	task  Task
+	delay   float64
+	task    Task
 	started bool
 }
 
