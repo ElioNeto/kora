@@ -323,3 +323,84 @@ claude "Use a skill add-kscript-builtin para adicionar o módulo Storage com sav
 ```
 
 > **Dica:** Você também pode ser menos formal. Frases como _"cria um novo módulo seguindo os padrões do projeto"_ ou _"audita e corrige core/async/"_ são suficientes para o Claude identificar e carregar a skill correta.
+
+---
+
+## ⚙️ Local Tools
+
+Os scripts em `.claude/tools/` são ferramentas de **leitura somente** que o Claude deve rodar automaticamente para investigar o estado local do projeto antes de agir.
+
+### Ferramentas disponíveis
+
+| Script | Linguagem | O que retorna |
+|--------|-----------|---------------|
+| [`.claude/tools/inspect-build.sh`](.claude/tools/inspect-build.sh) | Bash | JSON com binários, arquivos `.ks.go` gerados, artefatos APK/AAB, versão Go e status git |
+| [`.claude/tools/kscript-api-map.py`](.claude/tools/kscript-api-map.py) | Python 3 | JSON com módulos built-in do checker, cases do emitter, tipos KScript e módulos core/ |
+
+### Quando o Claude DEVE rodar as tools automaticamente
+
+**Rodar `inspect-build.sh` antes de:**
+- Qualquer tarefa que envolva build (`make build`, `bash build.sh`, `gomobile`)
+- Investigar por que um APK não foi gerado ou está desatualizado
+- Verificar se existem `.ks.go` gerados antes de rodar testes
+- Reportar o tamanho de artefatos de build
+
+**Rodar `kscript-api-map.py` antes de:**
+- Adicionar ou modificar qualquer módulo built-in do KScript
+- Investigar quais funções já estão registradas no checker ou emitter
+- Listar quais módulos de `core/` já possuem testes
+- Entender quais `objects` e `components` existem nos exemplos do projeto
+
+### Como executar
+
+```bash
+# Inspecionar estado do build
+bash .claude/tools/inspect-build.sh
+
+# Mapear toda a API KScript atual
+python3 .claude/tools/kscript-api-map.py
+
+# Com output formatado (requer jq)
+bash .claude/tools/inspect-build.sh | jq .
+python3 .claude/tools/kscript-api-map.py | jq '.summary'
+```
+
+> **Permissões:** Ambos os scripts são somente leitura e não têm efeitos colaterais.
+> Para dar permissão de execução (necessário apenas uma vez):
+> ```bash
+> chmod +x .claude/tools/inspect-build.sh .claude/tools/kscript-api-map.py
+> ```
+
+---
+
+## 📚 Knowledge Base
+
+Os documentos em `.claude/docs/` contêm regras de negócio e arquitetura interna que **não estão disponíveis na internet pública**.
+
+> ⚠️ **Regra obrigatória:** O Claude deve **SEMPRE** ler os arquivos abaixo antes de tentar modificar a lógica principal ou componentes internos do engine.
+
+### Documentos disponíveis
+
+| Documento | Quando ler |
+|-----------|------------|
+| [`.claude/docs/kscript-pipeline.md`](.claude/docs/kscript-pipeline.md) | **Antes de qualquer modificação em `compiler/`** — descreve as 5 fases do compilador (Lexer → Parser → Checker → Transform → Emitter), o mapeamento de tipos KScript→Go, como `async/await` é transpilado, e as dívidas técnicas ativas |
+| [`.claude/docs/engine-architecture.md`](.claude/docs/engine-architecture.md) | **Antes de qualquer modificação em `core/`** — descreve as regras absolutas do game loop Ebiten, o scheduler de corrotinas, a física AABB e suas limitações, o pipeline de render, e o ciclo de vida das cenas |
+
+### O que cada documento contém
+
+**`kscript-pipeline.md`** cobre:
+- Fluxo completo: `.ks` → tokens → AST → typecheck → asyncMap → `.ks.go`
+- Todos os nós do AST e o que cada um representa
+- Como o checker valida built-ins e o mapeamento de tipos
+- Como `async fn` / `await` / `spawn` são transpilados para goroutines Go
+- Convenções do código `.ks.go` gerado (prefixo `kora`, PascalCase lifecycle)
+- Dívidas técnicas ativas: DEBT-001 (genéricos parciais), emitter silencioso
+
+**`engine-architecture.md`** cobre:
+- Regras absolutas do game loop (`Update` < 1ms, `Draw` read-only, sem mutex, sem GC)
+- API do scheduler `core/async/` (Spawn, Cancel, Wait)
+- Física AABB: o que faz, o que não faz, DEBT-005 (rotação apenas visual)
+- Pipeline de render por frame e sistema de coordenadas
+- Ciclo de vida completo de cenas (load/additive/reload)
+- Android export: requisitos, targets SDK, e restrições de CGO
+- DEBT-002 (leak de goroutines) e DEBT-003 (serializer síncrono)
