@@ -90,13 +90,15 @@ func TestAsyncIniterStartsTask(t *testing.T) {
 	if !e.started {
 		t.Error("CreateTask should be called on Spawn")
 	}
-	// task should still be running after 0.5s
-	s.Update(0.5)
+	// tick scheduler directly (Scene.Update doesn't tick it by default)
+	s.Scheduler().Tick(0.5)
 	if s.Scheduler().Len() == 0 {
 		t.Error("expected async task to still be running")
 	}
-	// task completes after another 0.6s
-	s.Update(0.6)
+	// task completes after another 0.6s (total 1.1s > 1.0s duration)
+	for i := 0; i < 10; i++ {
+		s.Scheduler().Tick(0.1)
+	}
 	if s.Scheduler().Len() != 0 {
 		t.Errorf("expected 0 running tasks, got %d", s.Scheduler().Len())
 	}
