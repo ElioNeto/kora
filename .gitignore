@@ -45,9 +45,20 @@ yarn-error.log*
 *.temp
 .cache/
 
-# KScript output
-*.go
+# KScript output (generated files, not engine code)
 *.ks
+
+# Go test coverage files (generated)
+*.test
+
+# Excluded from above - the core engine and compiler source files are NOT ignored
+# These are real Go source files, not generated:
+!core/**/*.go
+!compiler/**/*.go
+!runner/**/*.go
+!main.go
+!go.mod
+!go.sum
 
 # APK
 *.apk
