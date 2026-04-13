@@ -52,6 +52,12 @@ type SignalEmitter interface {
 	ClearSignals()
 }
 
+// PhysicsNode is an Entity that participates in physics simulation.
+type PhysicsNode interface {
+	Entity
+	PhysicsUpdate(dt float64)
+}
+
 // ----------------------------------------------------------------------------
 // BaseEntity — embed in generated structs for signal support
 // ----------------------------------------------------------------------------

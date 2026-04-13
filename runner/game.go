@@ -60,13 +60,18 @@ type SceneFactory func(s *scene.Scene)
 // Game — implements ebiten.Game
 // ----------------------------------------------------------------------------
 
+// Hook is a function called every tick/frame.
+type Hook func(dt float64)
+
 // Game is the central game object. Create one with New, then call Run.
 type Game struct {
-	cfg     Config
-	tree    *scene.SceneTree  // SceneTree orchestrates the game loop
-	renderer *render.Renderer
-	fade    scene.FadeState
-	ticks   uint64
+	cfg        Config
+	tree       *scene.SceneTree  // SceneTree orchestrates the game loop
+	renderer   *render.Renderer
+	fade       scene.FadeState
+	ticks      uint64
+	updateHooks []Hook
+	drawHooks   []Hook
 }
 
 // New creates a Game with the given config and initial scene factory.
@@ -102,6 +107,11 @@ func (g *Game) Update() error {
 	// Input must be sampled first.
 	input.Update()
 
+	// Run update hooks (e.g., global systems).
+	for _, fn := range g.updateHooks {
+		fn(dt)
+	}
+
 	// SceneTree Tick drives the entire game loop (physics + logic).
 	g.tree.Tick(dt)
 	return nil
@@ -114,6 +124,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// SceneTree Draw renders everything (runs even when paused).
 	g.tree.Draw(screen)
+
+	// Run draw hooks.
+	for _, fn := range g.drawHooks {
+		fn(1.0 / float64(ebiten.TPS()))
+	}
 
 	// Debug overlay.
 	if g.cfg.DebugOverlay {

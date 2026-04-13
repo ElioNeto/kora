@@ -5,7 +5,7 @@
 # Retorna JSON com estado do compilador, binários e artefatos Android.
 # Seguro: apenas leitura, sem efeitos colaterais.
 
-set -euo pipefail
+set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -64,7 +64,12 @@ TEST_CACHE=$(go env GOCACHE 2>/dev/null || echo "unknown")
 
 # ---- last build attempt (from .git log) ----
 LAST_COMMIT=$(git -C "$ROOT" log -1 --format='%h %s (%cr)' 2>/dev/null || echo "git not available")
-DIRTY=$(git -C "$ROOT" diff --quiet 2>/dev/null && echo false || echo true)
+DIRTY=false
+if git -C "$ROOT" diff --quiet 2>/dev/null; then
+  DIRTY=false
+else
+  DIRTY=true
+fi
 
 # ---- output JSON ----
 cat <<EOF

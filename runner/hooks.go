@@ -1,36 +1,15 @@
 package runner
 
-// hooks storage — kept in a separate file to avoid cluttering game.go.
-// The Game struct in game.go is extended by declaring these fields here;
-// because Go does not allow split struct declarations across files,
-// we instead store hooks in a companion map keyed by *Game.
-// This is the idiomatic Go approach for optional extensibility.
+// Hook is a function called every tick/frame.
+type Hook func(dt float64)
 
-var (
-	updateHooks = map[*Game][]Hook{}
-	drawHooks   = map[*Game][]Hook{}
-)
-
-// addUpdateHook stores a hook for g.
-func (g *Game) addUpdateHook(fn Hook) {
-	updateHooks[g] = append(updateHooks[g], fn)
+// AddUpdateHook registers fn to be called at the start of every Update tick.
+// Useful for global systems (particle emitters, achievement trackers, etc.).
+func (g *Game) AddUpdateHook(fn Hook) {
+	g.updateHooks = append(g.updateHooks, fn)
 }
 
-// addDrawHook stores a draw hook for g.
-func (g *Game) addDrawHook(fn Hook) {
-	drawHooks[g] = append(drawHooks[g], fn)
-}
-
-// runUpdateHooks executes all registered update hooks for g.
-func (g *Game) runUpdateHooks(dt float64) {
-	for _, fn := range updateHooks[g] {
-		fn(dt)
-	}
-}
-
-// runDrawHooks executes all registered draw hooks for g.
-func (g *Game) runDrawHooks(dt float64) {
-	for _, fn := range drawHooks[g] {
-		fn(dt)
-	}
+// AddDrawHook registers fn to be called at the end of every Draw frame.
+func (g *Game) AddDrawHook(fn Hook) {
+	g.drawHooks = append(g.drawHooks, fn)
 }
