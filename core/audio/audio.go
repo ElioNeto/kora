@@ -78,7 +78,7 @@ func LoadOGG(path string) (*Sound, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sound{data: data, rate: decoded.SampleRate()}, nil
+	return &Sound{data: data, rate: mgr.ctx.SampleRate()}, nil
 }
 
 // LoadWAV decodes a WAV file from path.
@@ -96,7 +96,7 @@ func LoadWAV(path string) (*Sound, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sound{data: data, rate: decoded.SampleRate()}, nil
+	return &Sound{data: data, rate: mgr.ctx.SampleRate()}, nil
 }
 
 // LoadMP3 decodes an MP3 file from path.
@@ -114,7 +114,7 @@ func LoadMP3(path string) (*Sound, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sound{data: data, rate: decoded.SampleRate()}, nil
+	return &Sound{data: data, rate: mgr.ctx.SampleRate()}, nil
 }
 
 // LoadOGGBytes decodes OGG from an in-memory byte slice (e.g. embed.FS).
@@ -127,7 +127,7 @@ func LoadOGGBytes(b []byte) (*Sound, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sound{data: data, rate: decoded.SampleRate()}, nil
+	return &Sound{data: data, rate: mgr.ctx.SampleRate()}, nil
 }
 
 // ----------------------------------------------------------------------------

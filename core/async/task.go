@@ -110,6 +110,69 @@ func (t *funcTask) Tick(dt float64) Status {
 }
 
 // ----------------------------------------------------------------------------
+// Race — first task to complete wins
+// ----------------------------------------------------------------------------
+
+type raceTask struct {
+	tasks  []Task
+	doneCh chan struct{}
+	result Status
+}
+
+// Race returns a Task that completes when any of the input tasks complete.
+func Race(tasks ...Task) Task {
+	if len(tasks) == 0 {
+		return Immediate()
+	}
+	return &raceTask{tasks: tasks}
+}
+
+func (t *raceTask) Tick(dt float64) Status {
+	for i, task := range t.tasks {
+		if task != nil {
+			status := task.Tick(dt)
+			if status == Done {
+				// Cancel other tasks and return Done
+				for j, other := range t.tasks {
+					if j != i && other != nil {
+						t.tasks[j] = Immediate()
+					}
+				}
+				return Done
+			}
+		}
+	}
+	return Running
+}
+
+// ----------------------------------------------------------------------------
+// All — all tasks must complete
+// ----------------------------------------------------------------------------
+
+type allTask struct {
+	tasks []Task
+}
+
+// All returns a Task that completes when all input tasks complete.
+func All(tasks ...Task) Task {
+	if len(tasks) == 0 {
+		return Immediate()
+	}
+	return &allTask{tasks: tasks}
+}
+
+func (t *allTask) Tick(dt float64) Status {
+	for i, task := range t.tasks {
+		if task != nil && task.Tick(dt) == Done {
+			t.tasks[i] = Immediate()
+		} else if task != nil {
+			return Running
+		}
+	}
+	return Done
+}
+
+// ----------------------------------------------------------------------------
 // Done sentinel
 // ----------------------------------------------------------------------------
 

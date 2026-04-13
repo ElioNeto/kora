@@ -344,7 +344,13 @@ func (e *Emitter) emitExprStr(expr ast.Expr) string {
 		for i, a := range ex.Args {
 			args[i] = e.emitExprStr(a)
 		}
-		return fmt.Sprintf("%s(%s)", e.emitExprStr(ex.Callee), strings.Join(args, ", "))
+		callee := e.emitExprStr(ex.Callee)
+		// Qualify built-in async functions with async. package
+		switch callee {
+		case "wait", "waitFrames", "waitSignal", "tween", "race", "all", "cancel":
+			callee = "async." + capitalize(callee)
+		}
+		return fmt.Sprintf("%s(%s)", callee, strings.Join(args, ", "))
 	case *ast.MemberExpr:
 		obj := e.emitExprStr(ex.Object)
 		// `this.x` → `o.X` (capitalize field name)

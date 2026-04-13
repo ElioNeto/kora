@@ -9,11 +9,9 @@
 package render
 
 import (
-	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 // Vec2 is a 2D float64 vector used throughout the engine.

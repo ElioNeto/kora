@@ -78,20 +78,38 @@ func (w *PhysicsWorld) Step(dt float32) {
 	}
 
 	// Body-body collision (O(n²) — fine for small entity counts)
+	// Check all pairs (i, j) where i < j to avoid duplicates
 	for i := 0; i < len(w.bodies); i++ {
-		a := w.bodies[i]
-		if a.Type == BodyStatic {
-			continue
-		}
 		for j := i + 1; j < len(w.bodies); j++ {
+			a := w.bodies[i]
 			b := w.bodies[j]
-			if b.Type == BodyStatic {
-				ResolveAABB(a, b)
-			} else {
-				// Both dynamic: resolve symmetrically
+
+			// Skip static-static pairs (they never move)
+			if a.Type == BodyStatic && b.Type == BodyStatic {
+				continue
+			}
+
+			// Dynamic-dynamic: resolve both directions
+			if a.Type == BodyDynamic && b.Type == BodyDynamic {
 				ResolveAABB(a, b)
 				ResolveAABB(b, a)
+				continue
 			}
+
+			// One is dynamic, one is static/kinematic:
+			// Only resolve on the dynamic body
+			var dynamic, static *RigidBody
+			if a.Type == BodyDynamic {
+				dynamic, static = a, b
+			} else {
+				// b is dynamic (a is static or kinematic)
+				dynamic, static = b, a
+			}
+			if dynamic.Type == BodyKinematic {
+				// Kinematic doesn't react to collisions
+				continue
+			}
+			ResolveAABB(dynamic, static)
 		}
 	}
 

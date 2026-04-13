@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "description": "Busca URLs externas — útil para consultar documentação do Ebiten, gomobile, KScript spec e Go stdlib"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ],
+      "description": "Acesso ao sistema de arquivos local do projeto para leitura/escrita segura"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "Integração com GitHub — gerenciar issues, PRs, e histórico do repo ElioNeto/kora"
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Persistência de memória entre sessões — mantém contexto de decisões arquiteturais e dívidas técnicas"
+    }
+  }
+}

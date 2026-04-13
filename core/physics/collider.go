@@ -64,11 +64,11 @@ func ResolveAABB(a, b *RigidBody) {
 	if ov.DepthY > 0 {
 		a.Vel.Y = 0
 		if ov.NormalY < 0 {
-			a.IsTouching[2] = true // Top
-			a.IsGrounded = false
-		} else {
-			a.IsTouching[3] = true // Bottom (landed)
+			a.IsTouching[2] = true // Top (player is above b, so grounded)
 			a.IsGrounded = true
+		} else {
+			a.IsTouching[3] = true // Bottom (player is below b, ceiling)
+			a.IsGrounded = false
 		}
 	}
 
