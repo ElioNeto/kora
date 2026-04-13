@@ -1,77 +1,58 @@
-# ============================================================
-# .claudeignore — Kora Engine
-# Arquivos que Claude NÃO deve ler/modificar por padrão.
-# Segue a mesma sintaxe do .gitignore.
-# ============================================================
-
-# ------ Dependências e build artifacts ----------------------
-vendor/
-go.sum
-*.out
-*.test
-*.prof
-*.pprof
+# Binários e artefatos de build
+bin/
 dist/
-build/
-_build/
-android/bin/
-android/*.apk
-android/*.aab
-android/*.keystore
-*.aar
+dist-electron/
+*.exe
+*.dll
 *.so
 *.a
+*.out
+*.apk
+*.aab
+
+# Android build (pastas pesadas do Gradle)
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# Dependências
 node_modules/
 
-# ------ Gerados automaticamente pelo compilador KScript ------
-compiler/generated/
-**/*.ks.go          # transpilados KScript → Go (não editar direto)
+# Arquivos gerados pelo transpiler KScript (nunca editar manualmente)
+*.ks.go
 
-# ------ Assets binários (não há valor em ler) ---------------
-assets/**/*.png
-assets/**/*.jpg
-assets/**/*.jpeg
-assets/**/*.gif
-assets/**/*.webp
-assets/**/*.svg
-assets/**/*.mp3
-assets/**/*.ogg
-assets/**/*.wav
-assets/**/*.ttf
-assets/**/*.otf
-templates/**/*.png
-templates/**/*.jpg
-templates/**/*.wav
-templates/**/*.mp3
-examples/**/*.png
-examples/**/*.jpg
+# Cache e temporários
+.cache/
+*.tmp
+*.temp
+.editor-cache/
 
-# ------ Segredos e chaves ----------------------------------
-.env
-.env.*
-!.env.example
-*.keystore
-*-key.json
-android/signing.properties
-android/google-services.json
+# Assets binários (sprites, sons, fontes)
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.mp3
+**/*.ogg
+**/*.wav
+**/*.ttf
+**/*.woff
+**/*.woff2
 
-# ------ IDEs e sistema -------------------------------------
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
+# Sessões do Claude Code
+.claude/sessions/
 
-# ------ Logs e temporários ---------------------------------
+# Logs
 *.log
-tmp/
-.tmp/
-coverage/
-coverage.out
-coverage.html
 
-# ------ Documentação de terceiros (não é código nosso) ------
-docs/external/
-docs/vendor/
+# Cobertura de testes
+coverage/
+.nyc_output/
+
+# go.sum (gerado automaticamente, não precisa de contexto)
+go.sum
+
+# Lockfiles
+yarn.lock
+package-lock.json

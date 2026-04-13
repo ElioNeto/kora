@@ -16,6 +16,42 @@ configurar Android Studio, NDK ou Gradle manualmente.
 - Exportação Android: `golang.org/x/mobile` + `gomobile`
 - Linguagem de script: **KScript** (transpila para Go antes do build APK)
 - Editor: HTML/CSS/JS puro (sem framework), roda no browser ou Electron
+- Testes: `testing` stdlib do Go (sem frameworks externos)
+
+---
+
+## Comandos Exatos
+
+```bash
+# Desenvolvimento
+go run .                          # roda o engine (desktop preview)
+make run                          # alias via Makefile
+
+# Build
+make build                        # compila binário desktop
+bash build.sh debug               # gera APK não assinado para testes
+bash build.sh release             # gera AAB assinado (requer keystore configurada)
+
+# Testes
+go test ./...                     # roda todos os testes
+go test ./core/physics/... -v     # testes de pacote específico com verbosidade
+go test -run TestNomeDaFuncao ... # roda um teste específico
+go test -cover ./...              # com cobertura
+
+# Compilador KScript
+go run ./cmd/kora compile <arquivo.ks>  # transpila um arquivo KScript
+go run ./cmd/kora build                 # build completo do projeto
+go run ./cmd/kora run                   # roda projeto no preview desktop
+
+# Linting
+golangci-lint run ./...           # análise estática (precisa ter golangci-lint instalado)
+go vet ./...                      # vet nativo do Go
+
+# Android
+go install golang.org/x/mobile/cmd/gomobile@latest
+gomobile init
+gomobile build -target android ./cmd/kora
+```
 
 ---
 
@@ -25,6 +61,8 @@ configurar Android Studio, NDK ou Gradle manualmente.
 kora/
 ├── main.go                  # Entry point do runtime
 ├── go.mod                   # Módulo: github.com/ElioNeto/kora
+├── Makefile                 # Automação de tarefas
+├── build.sh                 # Build script para APK/AAB
 │
 ├── core/                    # Engine core (Go)
 │   ├── engine/              # Loop principal, inicialização Ebiten
@@ -145,15 +183,15 @@ usa o `cam.zoom` e `cam.{x,y}`.
     {
       "id": 1,
       "name": "Player",
-      "type": "sprite",        // sprite | tilemap | camera | audio | custom
+      "type": "sprite",
       "x": 0, "y": 0,
       "w": 48, "h": 48,
       "rotation": 0,
       "visible": true,
       "locked": false,
       "color": "#00e5a0",
-      "assetId": "asset_...",  // opcional
-      "script": ""             // código KScript inline
+      "assetId": "asset_...",
+      "script": ""
     }
   ]
 }
@@ -166,24 +204,45 @@ usa o `cam.zoom` e `cam.{x,y}`.
 ### Pacotes
 - Um pacote por diretório, nome = nome do diretório
 - Exports com `PascalCase`, internos com `camelCase`
-- Interfaces com sufixo na descrição, não em `I` prefixo (ex: `AudioPlayer`, não `IAudioPlayer`)
+- Interfaces sem prefixo `I` (ex: `AudioPlayer`, não `IAudioPlayer`)
+- Erros retornados como último valor de retorno
+- Comentários de exported symbols obrigatórios (`// NomeDaFunc ...`)
 
 ### Testes
 - Todo arquivo `foo.go` deve ter `foo_test.go` correspondente
-- Use `testing.T` padrão, sem frameworks externos
+- Use `testing.T` padrão, **sem frameworks externos** (sem testify, gomock, etc.)
 - Nomes: `TestNomeDaFuncao_cenario` (ex: `TestPhysics_AABBCollision`)
+- Use table-driven tests quando testando múltiplos cenários
+- Helpers de teste ficam em `testutil_test.go` por pacote
 
 ### Ebiten
 - O game loop é `Update()` + `Draw()` chamados pelo Ebiten
 - `Update()` roda a 60 TPS fixo; `dt = 1.0/60.0` (use `ebiten.ActualTPS()` para debug)
-- Nunca bloqueie a goroutine do game loop — use o scheduler de `core/async/`
+- **Nunca bloqueie** a goroutine do game loop — use o scheduler de `core/async/`
 - Rendering via `*ebiten.Image`; nunca use `image.RGBA` direto para render final
+- Nunca chame `runtime.GC()` explicitamente no loop — causa frame drops
 
 ### gomobile / Android export
 - O entry point Android é `android/main.go` (gerado pelo build script)
 - `build.sh debug` → APK não assinado para testes
-- `build.sh release` → AAB assinado com keystore (não commitar keystore no repo)
+- `build.sh release` → AAB assinado com keystore (**não commitar keystore**)
 - Target SDK: 34 (Android 14), minSDK: 24 (Android 7)
+- **Proibido usar `cgo`** — todo código deve compilar com `GOARCH=arm64 GOOS=android`
+
+---
+
+## Diretrizes de Estilo Estritas
+
+| Regra | Correto | Errado |
+|-------|---------|--------|
+| Nomenclatura Go exports | `PascalCase` | `camelCase` para exports |
+| Nomenclatura KScript objects | `PascalCase` | `snake_case` |
+| Campos privados KScript | `_nomeCampo` | `nomeCampo` sem prefixo |
+| Constantes KScript | `UPPER_SNAKE_CASE` | `camelCase` |
+| Erros Go | `fmt.Errorf("context: %w", err)` | erros sem wrapping |
+| Arquivos gerados | `*.ks.go` | editar manualmente |
+| Testes | `testing` stdlib | testify/mock externos |
+| Imports Go | agrupados (stdlib / externos / internos) | misturados |
 
 ---
 
@@ -228,7 +287,10 @@ No editor, a mesma resolução lógica é usada para garantir fidelidade no prev
 - **Não editar** `*.ks.go` (arquivos gerados pelo transpiler KScript)
 - **Não commitar** `*.keystore`, `.env`, `android/signing.properties`
 - **Não usar** `localStorage` ou `sessionStorage` no editor (roda em iframe sandbox)
-- **Não usar** `cgo` no core — todo o código deve compilar com `GOARCH=arm64 GOOS=android` via gomobile
+- **Não usar** `cgo` no core — todo código deve compilar com `GOARCH=arm64 GOOS=android`
 - **Não hardcodar** resolução no editor — sempre usar `state.meta.logicalW/H`
 - **Não quebrar** a API pública de `core/physics`, `core/audio`, `core/input`, `core/scene`
   sem atualizar `docs/API_REFERENCE.md` e os testes correspondentes
+- **Não usar** `runtime.GC()` explicitamente no game loop
+- **Não misturar** lógica de editor com lógica de runtime
+- **Não adicionar** dependências externas de testes (testify, gomock, etc.)
