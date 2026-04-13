@@ -28,11 +28,11 @@ func defaultOptions() Options {
 
 // Emitter converts a KScript Program + async transform map into Go source.
 type Emitter struct {
-	opts      Options
-	asyncMap  map[*ast.MethodDecl]*transform.AsyncMethod
-	prog      *ast.Program
-	out       strings.Builder
-	indent    int
+	opts     Options
+	asyncMap map[*ast.MethodDecl]*transform.AsyncMethod
+	prog     *ast.Program
+	out      strings.Builder
+	indent   int
 }
 
 // New creates an Emitter.
@@ -75,10 +75,12 @@ func (e *Emitter) emitHeader() {
 	e.pop()
 	e.line(")")
 	e.line("")
+	// Suppress unused-import errors during early development.
+	// `scene` is NOT imported here — SceneTree is accessed via runner.GameTree().
 	e.line("// Suppress unused import errors during early development.")
 	e.line("var _ = async.Wait")
 	e.line("var _ = (*render.Renderer)(nil)")
-	e.line("var _ = (*scene.SceneTree)(nil)")
+	e.line("var _ = runner.GameTree")
 	e.line("")
 }
 
@@ -347,7 +349,7 @@ func (e *Emitter) emitExprStr(expr ast.Expr) string {
 			args[i] = e.emitExprStr(a)
 		}
 		callee := e.emitExprStr(ex.Callee)
-		// Qualify built-in async functions with async. package
+		// Qualify built-in async functions with async. package.
 		switch callee {
 		case "wait", "waitFrames", "waitSignal", "tween", "race", "all", "cancel":
 			callee = "async." + capitalize(callee)
@@ -357,16 +359,17 @@ func (e *Emitter) emitExprStr(expr ast.Expr) string {
 		obj := e.emitExprStr(ex.Object)
 		prop := ex.Prop
 		// Scene.pause(), Scene.resume(), Scene.changeScene(), Scene.isPaused()
+		// All delegate to the global SceneTree exposed by the runner package.
 		if obj == "Scene" {
 			switch prop {
 			case "pause":
-				return "runner.gameTree.Pause()"
+				return "runner.GameTree().Pause"
 			case "resume":
-				return "runner.gameTree.Resume()"
+				return "runner.GameTree().Resume"
 			case "changeScene":
-				return "runner.gameTree.ChangeScene"
+				return "runner.GameTree().ChangeScene"
 			case "isPaused":
-				return "runner.gameTree.IsPaused()"
+				return "runner.GameTree().IsPaused"
 			}
 		}
 		// `this.x` → `o.X` (capitalize field name)

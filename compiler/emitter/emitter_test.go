@@ -106,3 +106,37 @@ func TestEmitPackageHeader(t *testing.T) {
 	assertContains(t, out, "package gen")
 	assertContains(t, out, "DO NOT EDIT")
 }
+
+// TestEmitSceneBindings verifica que chamadas KScript à API Scene são
+// corretamente traduzidas para runner.GameTree().<Método>.
+func TestEmitSceneBindings(t *testing.T) {
+	src := `
+object PauseMenu {
+  update(dt: float) {
+    Scene.pause()
+    Scene.resume()
+    Scene.changeScene("level2")
+  }
+}`
+	out := compile(t, src)
+	// pause → runner.GameTree().Pause
+	assertContains(t, out, "runner.GameTree().Pause")
+	// resume → runner.GameTree().Resume
+	assertContains(t, out, "runner.GameTree().Resume")
+	// changeScene → runner.GameTree().ChangeScene
+	assertContains(t, out, "runner.GameTree().ChangeScene")
+}
+
+// TestEmitSceneIsPaused verifica que Scene.isPaused() emite a chamada correta.
+func TestEmitSceneIsPaused(t *testing.T) {
+	src := `
+object HUD {
+  update(dt: float) {
+    if (Scene.isPaused()) {
+      this.visible = false
+    }
+  }
+}`
+	out := compile(t, src)
+	assertContains(t, out, "runner.GameTree().IsPaused")
+}

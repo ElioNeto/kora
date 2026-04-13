@@ -63,21 +63,27 @@ type SceneFactory func(s *scene.Scene)
 // Game is the central game object. Create one with New, then call Run.
 type Game struct {
 	cfg      Config
-	tree     *scene.SceneTree       // SceneTree orchestrates the game loop
+	tree     *scene.SceneTree // SceneTree orchestrates the game loop
 	renderer *render.Renderer
 	fade     scene.FadeState
 	ticks    uint64
 }
 
-// gameTree returns the global SceneTree for use by KScript built-ins.
+// gameTree is the global SceneTree, accessible by KScript-generated code via GameTree().
 var gameTree *scene.SceneTree
+
+// GameTree returns the global SceneTree for use by KScript built-ins.
+// It is set once when New() is called and never changes for the lifetime of the process.
+func GameTree() *scene.SceneTree {
+	return gameTree
+}
 
 // New creates a Game with the given config and initial scene factory.
 func New(cfg Config, initial SceneFactory) *Game {
 	cfg.apply()
 	g := &Game{cfg: cfg}
 	g.tree = scene.NewSceneTree()
-	gameTree = g.tree // Expose globally for KScript built-ins
+	gameTree = g.tree // expose globally for KScript built-ins
 	g.tree.SetCurrentScene(scene.New())
 	initial(g.tree.GetCurrentScene())
 	return g
@@ -139,9 +145,9 @@ func (g *Game) Layout(_, _ int) (int, int) {
 
 // GotoScene requests a scene change.
 func (g *Game) GotoScene(factory SceneFactory) {
-	scene := scene.New()
-	factory(scene)
-	g.tree.RegisterScene("next", scene)
+	s := scene.New()
+	factory(s)
+	g.tree.RegisterScene("next", s)
 	g.tree.ChangeScene("next")
 }
 
@@ -178,13 +184,13 @@ func (g *Game) drawDebug() {
 	if g.renderer == nil {
 		return
 	}
-	scene := g.tree.GetCurrentScene()
+	s := g.tree.GetCurrentScene()
 	msg := fmt.Sprintf(
 		"FPS: %0.1f  TPS: %0.1f\nEntities: %d  Tasks: %d  Tick: %d",
 		ebiten.ActualFPS(),
 		ebiten.ActualTPS(),
-		scene.Count(),
-		scene.Scheduler().Len(),
+		s.Count(),
+		s.Scheduler().Len(),
 		g.ticks,
 	)
 	g.renderer.DrawDebugText(4, 4, msg)
