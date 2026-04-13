@@ -77,31 +77,46 @@ func (s *Scene) DestroyAll() {
 //  4. Clear per-frame signals.
 //  5. Prune dead entities.
 func (s *Scene) Update(dt float64) {
-	// 1. Flush pending.
+	s.UpdatePausable(dt, false)
+}
+
+// UpdatePausable advances the scene by dt seconds, with pause support.
+// When paused is true, only ProcessModeAlways and ProcessModeWhenPaused nodes run.
+func (s *Scene) UpdateProcessMode(dt float64, paused bool) {
+	// 1. Flush pending spawns.
 	s.entities = append(s.entities, s.pending...)
 	s.pending = s.pending[:0]
 
-	// 2. Async scheduler.
-	s.scheduler.Tick(dt)
-
-	// 3. Update entities.
+	// 2. Update all living Updater entities (scheduler is always ticked).
 	for _, e := range s.entities {
 		if !e.IsAlive() {
 			continue
 		}
 		if u, ok := e.(Updater); ok {
-			u.Update(dt)
+			if paused {
+				// When paused, only run ProcessModeAlways nodes.
+				if epm, ok := u.(EntityWithProcessMode); ok {
+					if epm.GetProcessMode() == ProcessModeAlways {
+						u.Update(dt)
+					}
+				} else {
+					// Default to Pausable behavior if no ProcessMode set.
+					u.Update(dt)
+				}
+			} else {
+				u.Update(dt)
+			}
 		}
 	}
 
-	// 4. Clear signals.
+	// 3. Clear signals.
 	for _, e := range s.entities {
 		if se, ok := e.(SignalEmitter); ok {
 			se.ClearSignals()
 		}
 	}
 
-	// 5. Prune dead.
+	// 4. Prune dead entities.
 	s.prune()
 }
 
