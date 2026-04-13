@@ -294,3 +294,32 @@ No editor, a mesma resolução lógica é usada para garantir fidelidade no prev
 - **Não usar** `runtime.GC()` explicitamente no game loop
 - **Não misturar** lógica de editor com lógica de runtime
 - **Não adicionar** dependências externas de testes (testify, gomock, etc.)
+
+---
+
+## 🛠️ Custom Skills
+
+O Claude Code possui **habilidades customizadas** (skills) para as tarefas mais complexas e recorrentes deste projeto. Para invocar uma skill, mencione o nome dela no seu prompt.
+
+### Skills disponíveis
+
+| Skill | Arquivo | Quando usar |
+|-------|---------|-------------|
+| `scaffold-module` | [`.claude/skills/scaffold-module.md`](.claude/skills/scaffold-module.md) | Criar um novo módulo/pacote Go em `core/` ou `compiler/` seguindo os padrões do projeto |
+| `audit-and-fix` | [`.claude/skills/audit-and-fix.md`](.claude/skills/audit-and-fix.md) | Rodar fmt, vet, build e testes em um arquivo ou pacote específico e corrigir automaticamente |
+| `add-kscript-builtin` | [`.claude/skills/add-kscript-builtin.md`](.claude/skills/add-kscript-builtin.md) | Adicionar um novo módulo built-in exposto ao KScript (envolve runtime, checker, emitter e docs) |
+
+### Como invocar no terminal do Claude Code
+
+```bash
+# Criar um novo módulo
+claude "Use a skill scaffold-module para criar o módulo `particles` em core/ com a struct ParticleEmitter"
+
+# Auditar e corrigir um pacote
+claude "Use a skill audit-and-fix no pacote core/physics/"
+
+# Adicionar built-in KScript
+claude "Use a skill add-kscript-builtin para adicionar o módulo Storage com save(key, value), load(key) e delete(key)"
+```
+
+> **Dica:** Você também pode ser menos formal. Frases como _"cria um novo módulo seguindo os padrões do projeto"_ ou _"audita e corrige core/async/"_ são suficientes para o Claude identificar e carregar a skill correta.
