@@ -16,6 +16,7 @@ type Scene struct {
 	pending   []Entity          // spawned mid-frame, added after update
 	scheduler *async.Scheduler
 	groups    map[string][]Entity
+	paused    bool
 }
 
 // New creates an empty Scene.
@@ -28,6 +29,12 @@ func New() *Scene {
 
 // Scheduler returns the scene-wide async scheduler.
 func (s *Scene) Scheduler() *async.Scheduler { return s.scheduler }
+
+// IsPaused returns whether the scene is currently paused.
+func (s *Scene) IsPaused() bool { return s.paused }
+
+// SetPaused sets the paused state of the scene.
+func (s *Scene) SetPaused(paused bool) { s.paused = paused }
 
 // ----------------------------------------------------------------------------
 // Spawn / Destroy
