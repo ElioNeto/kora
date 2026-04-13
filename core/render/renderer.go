@@ -28,9 +28,14 @@ type Renderer struct {
 	Camera Camera
 }
 
-// NewRenderer creates a Renderer for the given screen.
-func NewRenderer(screen *ebiten.Image) *Renderer {
-	return &Renderer{screen: screen}
+// NewRenderer creates a Renderer. Screen is set via SetScreen.
+func NewRenderer() *Renderer {
+	return &Renderer{}
+}
+
+// SetScreen sets the underlying screen image.
+func (r *Renderer) SetScreen(screen *ebiten.Image) {
+	r.screen = screen
 }
 
 // Screen returns the underlying Ebitengine screen image.
@@ -42,9 +47,9 @@ func (r *Renderer) Screen() *ebiten.Image { return r.screen }
 
 // DrawRect draws a filled rectangle on the image.
 func DrawRect(img *ebiten.Image, x, y, w, h float64, c color.Color) {
-	rect := &ebiten.DrawImageOptions{}
-	rect.GeoM.Translate(x, y)
-
+	if img == nil {
+		return
+	}
 	// Create a 1x1 pixel image and stretch it
 	pixel := ebiten.NewImage(1, 1)
 	pixel.Fill(c)
@@ -58,10 +63,11 @@ func DrawRect(img *ebiten.Image, x, y, w, h float64, c color.Color) {
 
 // DebugTextAt draws debug text at screen coordinates.
 func DebugTextAt(img *ebiten.Image, msg string, x, y int) {
-	// Simple text rendering placeholder
-	// Note: Full implementation requires creating a font atlas
-	// For now, we skip this as it was not used in production code
-	_ = img
+	// Placeholder for debug text rendering
+	// Full implementation requires a font atlas
+	if img == nil {
+		return
+	}
 	_ = msg
 	_ = x
 	_ = y
@@ -69,7 +75,9 @@ func DebugTextAt(img *ebiten.Image, msg string, x, y int) {
 
 // Clear fills the screen with c.
 func (r *Renderer) Clear(c color.Color) {
-	r.screen.Fill(c)
+	if r.screen != nil {
+		r.screen.Fill(c)
+	}
 }
 
 // DrawSprite draws sp at world position (x, y) with the given options.

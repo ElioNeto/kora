@@ -60,9 +60,6 @@ type SceneFactory func(s *scene.Scene)
 // Game — implements ebiten.Game
 // ----------------------------------------------------------------------------
 
-// Hook is a function called every tick/frame.
-type Hook func(dt float64)
-
 // Game is the central game object. Create one with New, then call Run.
 type Game struct {
 	cfg        Config
@@ -119,11 +116,14 @@ func (g *Game) Update() error {
 
 // Draw is called by Ebitengine every frame (vsync).
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.renderer = render.NewRenderer(screen)
+	if g.renderer == nil {
+		g.renderer = render.NewRenderer()
+	}
+	g.renderer.SetScreen(screen)
 	g.renderer.Clear(g.cfg.ClearColor)
 
 	// SceneTree Draw renders everything (runs even when paused).
-	g.tree.Draw(screen)
+	g.tree.Draw(g.renderer)
 
 	// Run draw hooks.
 	for _, fn := range g.drawHooks {

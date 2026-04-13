@@ -2,6 +2,7 @@ package scene
 
 import (
 	"github.com/ElioNeto/kora/core/async"
+	"github.com/ElioNeto/kora/core/render"
 )
 
 // ----------------------------------------------------------------------------
@@ -145,7 +146,7 @@ func (s *Scene) prune() {
 // ----------------------------------------------------------------------------
 
 // Draw calls Draw(r) on every living Drawer in insertion order.
-func (s *Scene) Draw(r interface{}) {
+func (s *Scene) Draw(r *render.Renderer) {
 	for _, e := range s.entities {
 		if !e.IsAlive() {
 			continue

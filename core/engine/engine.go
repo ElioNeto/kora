@@ -31,7 +31,7 @@ type Engine struct {
 func New(cfg Config) (*Engine, error) {
 	e := &Engine{
 		cfg:       cfg,
-		renderer:  render.New(cfg.Width, cfg.Height),
+		renderer:  render.NewRenderer(),
 		input:     input.New(),
 		scheduler: async.NewScheduler(),
 		scene:     scene.New(),
@@ -58,9 +58,8 @@ func (e *Engine) Update() error {
 
 // Draw is called every frame by Ebitengine.
 func (e *Engine) Draw(screen *ebiten.Image) {
-	e.renderer.Begin(screen)
+	e.renderer.SetScreen(screen)
 	e.scene.Draw(e.renderer)
-	e.renderer.End()
 }
 
 // Layout returns the logical screen size.
