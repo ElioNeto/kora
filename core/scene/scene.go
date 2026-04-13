@@ -102,15 +102,16 @@ func (s *Scene) UpdateProcessMode(dt float64, paused bool) {
 		}
 		if u, ok := e.(Updater); ok {
 			if paused {
-				// When paused, only run ProcessModeAlways nodes.
+				// When paused, check ProcessMode.
 				if epm, ok := u.(EntityWithProcessMode); ok {
-					if epm.GetProcessMode() == ProcessModeAlways {
+					pm := epm.GetProcessMode()
+					if pm == ProcessModeAlways {
+						u.Update(dt)
+					} else if pm == ProcessModeWhenPaused {
 						u.Update(dt)
 					}
-				} else {
-					// Default to Pausable behavior if no ProcessMode set.
-					u.Update(dt)
 				}
+				// Default: ProcessModePausable does not run when paused.
 			} else {
 				u.Update(dt)
 			}

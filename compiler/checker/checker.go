@@ -453,6 +453,10 @@ func (c *Checker) checkMember(e *ast.MemberExpr, s *scope) string {
 			switch e.Prop {
 			case "spawn", "find":
 				return TyEntity
+			case "pause", "resume", "changeScene":
+				return TyVoid
+			case "isPaused":
+				return TyBool
 			}
 			return TyVoid
 		case "Math":

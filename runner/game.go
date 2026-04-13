@@ -62,18 +62,22 @@ type SceneFactory func(s *scene.Scene)
 
 // Game is the central game object. Create one with New, then call Run.
 type Game struct {
-	cfg   Config
-	tree  *scene.SceneTree // SceneTree orchestrates the game loop
+	cfg      Config
+	tree     *scene.SceneTree       // SceneTree orchestrates the game loop
 	renderer *render.Renderer
-	fade    scene.FadeState
-	ticks   uint64
+	fade     scene.FadeState
+	ticks    uint64
 }
+
+// gameTree returns the global SceneTree for use by KScript built-ins.
+var gameTree *scene.SceneTree
 
 // New creates a Game with the given config and initial scene factory.
 func New(cfg Config, initial SceneFactory) *Game {
 	cfg.apply()
 	g := &Game{cfg: cfg}
 	g.tree = scene.NewSceneTree()
+	gameTree = g.tree // Expose globally for KScript built-ins
 	g.tree.SetCurrentScene(scene.New())
 	initial(g.tree.GetCurrentScene())
 	return g

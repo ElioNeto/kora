@@ -71,12 +71,14 @@ func (e *Emitter) emitHeader() {
 	e.push()
 	e.linef(`"github.com/ElioNeto/kora/core/async"`)
 	e.linef(`"github.com/ElioNeto/kora/core/render"`)
+	e.linef(`"github.com/ElioNeto/kora/runner"`)
 	e.pop()
 	e.line(")")
 	e.line("")
 	e.line("// Suppress unused import errors during early development.")
 	e.line("var _ = async.Wait")
 	e.line("var _ = (*render.Renderer)(nil)")
+	e.line("var _ = (*scene.SceneTree)(nil)")
 	e.line("")
 }
 
@@ -353,11 +355,25 @@ func (e *Emitter) emitExprStr(expr ast.Expr) string {
 		return fmt.Sprintf("%s(%s)", callee, strings.Join(args, ", "))
 	case *ast.MemberExpr:
 		obj := e.emitExprStr(ex.Object)
+		prop := ex.Prop
+		// Scene.pause(), Scene.resume(), Scene.changeScene(), Scene.isPaused()
+		if obj == "Scene" {
+			switch prop {
+			case "pause":
+				return "runner.gameTree.Pause()"
+			case "resume":
+				return "runner.gameTree.Resume()"
+			case "changeScene":
+				return "runner.gameTree.ChangeScene"
+			case "isPaused":
+				return "runner.gameTree.IsPaused()"
+			}
+		}
 		// `this.x` → `o.X` (capitalize field name)
 		if _, isThis := ex.Object.(*ast.ThisExpr); isThis {
-			return fmt.Sprintf("%s.%s", obj, capitalize(ex.Prop))
+			return fmt.Sprintf("%s.%s", obj, capitalize(prop))
 		}
-		return fmt.Sprintf("%s.%s", obj, ex.Prop)
+		return fmt.Sprintf("%s.%s", obj, prop)
 	case *ast.IndexExpr:
 		return fmt.Sprintf("%s[%s]", e.emitExprStr(ex.Object), e.emitExprStr(ex.Index))
 	}
