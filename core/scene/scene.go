@@ -77,7 +77,7 @@ func (s *Scene) DestroyAll() {
 //  4. Clear per-frame signals.
 //  5. Prune dead entities.
 func (s *Scene) Update(dt float64) {
-	s.UpdatePausable(dt, false)
+	s.UpdateProcessMode(dt, false)
 }
 
 // UpdatePausable advances the scene by dt seconds, with pause support.
