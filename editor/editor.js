@@ -166,7 +166,7 @@ function drawSelection(e) {
 function getEntity(id) { return state.entities.find(e=>e.id===id); }
 function nextId() { return state.idSeq++; }
 function createEntity(name,type) {
-  return{id:nextId(),name,type,x:0,y:0,w:48,h:48,rotation:0,visible:true,locked:false,color:randomColor(),script:''};
+  return{id:nextId(),name,type,x:0,y:0,w:48,h:48,rotation:0,visible:true,locked:false,color:randomColor(),script:'',parentId:null};
 }
 function randomColor(){
   return['#00e5a0','#388bfd','#e3b341','#f85149','#bc8cff','#ff7b72','#79c0ff'][Math.floor(Math.random()*7)];
@@ -176,17 +176,89 @@ function randomColor(){
 const ENTITY_ICONS={sprite:'🟦',tilemap:'🔲',camera:'📷',audio:'🔊',custom:'⬡'};
 function buildHierarchy(){
   hierarchyEl.innerHTML='';
-  for(const e of state.entities){
-    const li=document.createElement('li');
-    li.className='hierarchy-item'+(e.id===state.selected?' selected':'');
-    li.dataset.id=e.id;
-    li.innerHTML=`<span class="entity-icon">${ENTITY_ICONS[e.type]||'⬡'}</span><span class="entity-name">${e.name}</span><button class="entity-vis">${e.visible?'👁':'🚫'}</button>`;
-    li.addEventListener('click',ev=>{
-      if(ev.target.classList.contains('entity-vis')){e.visible=!e.visible;markDirty();buildHierarchy();render();return;}
+  hierarchyEl.classList.add('tree-list');
+  // Build parent-child maps
+  const roots = state.entities.filter(e => !e.parentId);
+  const childrenMap = {};
+  state.entities.forEach(e => {
+    if (e.parentId) {
+      if (!childrenMap[e.parentId]) childrenMap[e.parentId] = [];
+      childrenMap[e.parentId].push(e);
+    }
+  });
+  function createItem(e, level) {
+    const li = document.createElement('li');
+    li.className = 'hierarchy-item' + (e.id === state.selected ? ' selected' : '');
+    li.dataset.id = e.id;
+    li.draggable = true;
+    li.style.paddingLeft = (12 + level * 16) + 'px';
+    li.innerHTML = `<span class="entity-icon">${ENTITY_ICONS[e.type]||'⬡'}</span><span class="entity-name" data-id="${e.id}">${e.name}</span><button class="entity-vis">${e.visible?'👁':'🚫'}</button>`;
+    // Click selection
+    li.addEventListener('click', ev => {
+      if (ev.target.classList.contains('entity-vis')) { e.visible = !e.visible; markDirty(); buildHierarchy(); render(); return; }
       selectEntity(e.id);
     });
+    // Double-click rename
+    li.querySelector('.entity-name').addEventListener('dblclick', function(ev) {
+      ev.stopPropagation();
+      const span = this;
+      const id = parseInt(span.dataset.id);
+      const ent = getEntity(id);
+      if (!ent) return;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = ent.name;
+      input.className = 'hierarchy-rename-input';
+      input.style.cssText = 'width:60%;font-size:11px;padding:1px 3px;';
+      span.parentNode.replaceChild(input, span);
+      input.focus(); input.select();
+      function finishRename() {
+        const newName = input.value.trim() || ent.name;
+        ent.name = newName;
+        buildHierarchy(); markDirty(); render();
+      }
+      input.addEventListener('blur', finishRename);
+      input.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); finishRename(); }
+        if (ev.key === 'Escape') { buildHierarchy(); }
+      });
+    });
+    // Drag events
+    li.addEventListener('dragstart', ev => {
+      ev.dataTransfer.setData('text/plain', e.id.toString());
+      ev.dataTransfer.effectAllowed = 'move';
+      li.classList.add('dragging');
+    });
+    li.addEventListener('dragend', () => {
+      li.classList.remove('dragging');
+      document.querySelectorAll('.hierarchy-item').forEach(el => el.classList.remove('drag-over'));
+    });
+    li.addEventListener('dragover', ev => {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      li.classList.add('drag-over');
+    });
+    li.addEventListener('dragleave', () => {
+      li.classList.remove('drag-over');
+    });
+    li.addEventListener('drop', ev => {
+      ev.preventDefault();
+      li.classList.remove('drag-over');
+      const draggedId = parseInt(ev.dataTransfer.getData('text/plain'));
+      if (draggedId === e.id) return;
+      const dragged = state.entities.find(en => en.id === draggedId);
+      if (!dragged) return;
+      // Set parentId to dropped item (make child)
+      dragged.parentId = e.id;
+      buildHierarchy(); markDirty(); render();
+    });
     hierarchyEl.appendChild(li);
+    // Recursively add children
+    if (childrenMap[e.id]) {
+      childrenMap[e.id].forEach(child => createItem(child, level + 1));
+    }
   }
+  roots.forEach(e => createItem(e, 0));
 }
 function selectEntity(id){state.selected=id;buildHierarchy();buildInspector(getEntity(id));render();}
 function deselectAll(){state.selected=null;buildHierarchy();inspectorEl.innerHTML='<p class="inspector-empty">Selecione uma entidade</p>';render();}

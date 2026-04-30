@@ -15,7 +15,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev libasound2-dev libgl1-mesa-dev pkg-config
+          sudo apt-get install -y libx11-dev libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev pkg-config
 
       - name: Setup Go
         uses: actions/setup-go@v5

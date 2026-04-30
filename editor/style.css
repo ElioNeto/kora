@@ -162,3 +162,9 @@ body {
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--color-border); border-radius:99px; }
 ::-webkit-scrollbar-thumb:hover { background:var(--color-text-faint); }
+
+/* Scene Tree drag-and-drop */
+.tree-list { padding: 4px 0; }
+.hierarchy-item.dragging { opacity: 0.4; background: var(--color-primary-dim); }
+.hierarchy-item.drag-over { border-top: 2px solid var(--color-primary); }
+.hierarchy-rename-input { background: var(--color-surface-offset); border: 1px solid var(--color-primary); color: var(--color-text); border-radius: var(--radius-sm); padding: 1px 3px; font-size: 11px; font-family: var(--font-ui); width: 60%; }

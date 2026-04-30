@@ -15,14 +15,19 @@
  * @returns {object} scene document
  */
 function sceneToJSON(entities, meta = {}) {
-  const doc = {
-    meta: {
-      name:     meta.name    || 'Untitled',
-      version:  meta.version || 1,
-      logicalW: meta.logicalW || 360,
-      logicalH: meta.logicalH || 640,
-    },
-    entities: entities.map(e => ({
+  // Build tree from flat list with parentId
+  const childrenMap = {};
+  const roots = [];
+  entities.forEach(e => {
+    if (e.parentId) {
+      if (!childrenMap[e.parentId]) childrenMap[e.parentId] = [];
+      childrenMap[e.parentId].push(e);
+    } else {
+      roots.push(e);
+    }
+  });
+  function entityToObj(e) {
+    const obj = {
       id:       e.id,
       name:     e.name,
       type:     e.type,
@@ -36,7 +41,20 @@ function sceneToJSON(entities, meta = {}) {
       color:    e.color,
       assetId:  e.assetId || '',
       script:   e.script || '',
-    })),
+    };
+    if (childrenMap[e.id]) {
+      obj.children = childrenMap[e.id].map(child => entityToObj(child));
+    }
+    return obj;
+  }
+  const doc = {
+    meta: {
+      name:     meta.name    || 'Untitled',
+      version:  meta.version || 1,
+      logicalW: meta.logicalW || 360,
+      logicalH: meta.logicalH || 640,
+    },
+    entities: roots.map(e => entityToObj(e)),
   };
   if (meta.parentScene) {
     doc.parentScene = meta.parentScene;
@@ -56,6 +74,46 @@ function jsonToScene(doc, nextId) {
   if (!meta.name && !doc.name) {
     throw new Error('Formato de cena inválido ou versão incompatível.');
   }
+  const entities = [];
+  function processEntity(e, parentId) {
+    const ent = {
+      id:       nextId(),
+      name:     e.name     || 'Entity',
+      type:     e.type     || 'custom',
+      x:        Number(e.x)        || 0,
+      y:        Number(e.y)        || 0,
+      w:        Number(e.w)        || 48,
+      h:        Number(e.h)        || 48,
+      rotation: Number(e.rotation) || 0,
+      visible:  e.visible !== false,
+      locked:   !!e.locked,
+      color:    e.color    || '#00e5a0',
+      assetId:  e.assetId  || '',
+      script:   e.script   || '',
+      parentId: parentId || null,
+    };
+    entities.push(ent);
+    // Process children if present
+    if (e.children && Array.isArray(e.children)) {
+      e.children.forEach(child => processEntity(child, ent.id));
+    }
+    // Fallback to parentId field (flat format)
+    if (e.parentId && !e.children) {
+      ent.parentId = e.parentId;
+    }
+  }
+  (doc.entities || []).forEach(e => processEntity(e, null));
+  return {
+    entities,
+    meta: {
+      name:       meta.name     || doc.name     || 'Untitled',
+      version:    meta.version  || doc.version  || 1,
+      logicalW:   meta.logicalW || doc.logicalW || 360,
+      logicalH:   meta.logicalH || doc.logicalH || 640,
+      parentScene: doc.parentScene || '',
+    },
+  };
+}
   const entities = (doc.entities || []).map(e => ({
     id:       nextId(),
     name:     e.name     || 'Entity',
@@ -70,16 +128,35 @@ function jsonToScene(doc, nextId) {
     color:    e.color    || '#00e5a0',
     assetId:  e.assetId  || '',
     script:   e.script   || '',
+    parentId: e.parentId !== undefined ? e.parentId : null,
   }));
   return {
-    entities,
-    meta: {
-      name:       meta.name     || doc.name     || 'Untitled',
-      version:    meta.version  || doc.version  || 1,
-      logicalW:   meta.logicalW || doc.logicalW || 360,
-      logicalH:   meta.logicalH || doc.logicalH || 640,
-      parentScene: doc.parentScene || '',
-    },
+    kora:     '1.0',
+    name:     meta.name    || 'Untitled',
+    version:  meta.version || 1,
+    logicalW: meta.logicalW || 360,
+    logicalH: meta.logicalH || 640,
+    entities: entities.map(e => {
+      const obj = {
+        id:       e.id,
+        name:     e.name,
+        type:     e.type,
+        x:        e.x,
+        y:        e.y,
+        w:        e.w,
+        h:        e.h,
+        rotation: e.rotation,
+        visible:  e.visible,
+        locked:   e.locked,
+        color:    e.color,
+        assetId:  e.assetId || '',
+        script:   e.script || '',
+      };
+      if (e.parentId !== null && e.parentId !== undefined) {
+        obj.parentId = e.parentId;
+      }
+      return obj;
+    }),
   };
 }
 
