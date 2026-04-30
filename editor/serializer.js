@@ -11,16 +11,17 @@
 /**
  * Serialize the current entity array to a plain JSON-safe object.
  * @param {object[]} entities
- * @param {object}   meta     – { name, version, logicalW, logicalH }
+ * @param {object}   meta        – { name, version, logicalW, logicalH, parentScene }
  * @returns {object} scene document
  */
 function sceneToJSON(entities, meta = {}) {
-  return {
-    kora:     '1.0',
-    name:     meta.name    || 'Untitled',
-    version:  meta.version || 1,
-    logicalW: meta.logicalW || 360,
-    logicalH: meta.logicalH || 640,
+  const doc = {
+    meta: {
+      name:     meta.name    || 'Untitled',
+      version:  meta.version || 1,
+      logicalW: meta.logicalW || 360,
+      logicalH: meta.logicalH || 640,
+    },
     entities: entities.map(e => ({
       id:       e.id,
       name:     e.name,
@@ -33,9 +34,14 @@ function sceneToJSON(entities, meta = {}) {
       visible:  e.visible,
       locked:   e.locked,
       color:    e.color,
+      assetId:  e.assetId || '',
       script:   e.script || '',
     })),
   };
+  if (meta.parentScene) {
+    doc.parentScene = meta.parentScene;
+  }
+  return doc;
 }
 
 /**
@@ -46,7 +52,8 @@ function sceneToJSON(entities, meta = {}) {
  * @returns {{ entities: object[], meta: object }}
  */
 function jsonToScene(doc, nextId) {
-  if (!doc || doc.kora !== '1.0') {
+  const meta = doc.meta || {};
+  if (!meta.name && !doc.name) {
     throw new Error('Formato de cena inválido ou versão incompatível.');
   }
   const entities = (doc.entities || []).map(e => ({
@@ -61,15 +68,17 @@ function jsonToScene(doc, nextId) {
     visible:  e.visible !== false,
     locked:   !!e.locked,
     color:    e.color    || '#00e5a0',
+    assetId:  e.assetId  || '',
     script:   e.script   || '',
   }));
   return {
     entities,
     meta: {
-      name:     doc.name     || 'Untitled',
-      version:  doc.version  || 1,
-      logicalW: doc.logicalW || 360,
-      logicalH: doc.logicalH || 640,
+      name:       meta.name     || doc.name     || 'Untitled',
+      version:    meta.version  || doc.version  || 1,
+      logicalW:   meta.logicalW || doc.logicalW || 360,
+      logicalH:   meta.logicalH || doc.logicalH || 640,
+      parentScene: doc.parentScene || '',
     },
   };
 }

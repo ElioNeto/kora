@@ -370,6 +370,10 @@ func (e *Emitter) emitExprStr(expr ast.Expr) string {
 				return "runner.GameTree().ChangeScene"
 			case "isPaused":
 				return "runner.GameTree().IsPaused"
+			case "load":
+				return "runner.GameSceneManager().ChangeScene"
+			case "instantiate":
+				return "runner.GameSceneManager().Instantiate"
 			}
 		}
 		// `this.x` → `o.X` (capitalize field name)
