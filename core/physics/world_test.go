@@ -331,3 +331,114 @@ func TestLayerMaskCollision(t *testing.T) {
 		t.Error("player should have passed through ground due to layer/mask")
 	}
 }
+
+// ------------------------------------------------------------------ CharacterBody2D
+
+func TestCharacterBody2DMoveAndSlide(t *testing.T) {
+	w := NewWorld(nil)
+	ground := staticBody(0, 100, 200, 20)
+	wall := staticBody(50, 0, 10, 200) // Wall at x=45-55
+	w.Register(ground)
+	w.Register(wall)
+
+	char := NewCharacterBody2D(99, 0, 50, 16, 16)
+	char.SetVelocity(Vec2{100, 0})
+	w.Register(char.RigidBody)
+
+	// Move right - should collide with wall
+	remaining := char.MoveAndSlide(Vec2{100, 0}, w.GetBodies())
+	if remaining.X == 100 {
+		t.Errorf("expected X velocity to be consumed by wall, got %.2f", remaining.X)
+	}
+}
+
+func TestCharacterBody2DIsOnFloor(t *testing.T) {
+	w := NewWorld(nil)
+	ground := staticBody(0, 100, 200, 20)
+	w.Register(ground)
+
+	char := NewCharacterBody2D(99, 0, 90, 16, 16)
+	char.SetVelocity(Vec2{0, 300})
+	w.Register(char.RigidBody)
+
+	// Step physics to land on ground
+	for i := 0; i < 120; i++ {
+		w.Step(1.0 / 60.0)
+	}
+
+	// After landing, try MoveAndSlide downward
+	char.MoveAndSlide(Vec2{0, 100}, w.GetBodies())
+	if !char.IsOnFloor() {
+		t.Error("character should be on floor after landing")
+	}
+}
+
+func TestCharacterBody2DMoveAndCollide(t *testing.T) {
+	w := NewWorld(nil)
+	wall := staticBody(50, 0, 10, 200) // Wall at x=45-55
+	w.Register(wall)
+
+	char := NewCharacterBody2D(99, 40, 0, 16, 16) // Start at x=40 (AABB: 32-48)
+	w.Register(char.RigidBody)
+
+	// Move right 20 units - should collide with wall at x=45
+	info := char.MoveAndCollide(Vec2{20, 0}, w.GetBodies())
+	if !info.Hit {
+		t.Error("expected collision with wall")
+	}
+}
+
+// ------------------------------------------------------------------ Area2D
+
+func TestArea2DBodyEntered(t *testing.T) {
+	w := NewWorld(nil)
+	body := dynBody(50, 50, 16, 16)
+	w.Register(body)
+
+	area := NewArea2D(100, 50, 50, 50, 50)
+	area.MonitorEnabled = true
+	area.OnBodyEntered = func(b *RigidBody) {
+		if b != body {
+			t.Error("wrong body passed to OnBodyEntered")
+		}
+	}
+
+	// Manually check overlaps (normally called by world)
+	area.CheckOverlaps(w)
+
+	if area.GetOverlappingBodyCount() != 1 {
+		t.Errorf("expected 1 overlapping body, got %d", area.GetOverlappingBodyCount())
+	}
+}
+
+func TestArea2DBodyExited(t *testing.T) {
+	w := NewWorld(nil)
+	body := dynBody(50, 50, 16, 16)
+	w.Register(body)
+
+	area := NewArea2D(100, 50, 50, 50, 50)
+	area.MonitorEnabled = true
+
+	exited := false
+	area.OnBodyExited = func(b *RigidBody) {
+		exited = true
+	}
+
+	// Check overlaps - body is inside
+	area.CheckOverlaps(w)
+	if area.GetOverlappingBodyCount() != 1 {
+		t.Error("expected body to be overlapping")
+	}
+
+	// Now move body far away and check again
+	body.Pos.X = 500
+	body.Pos.Y = 500
+	area.CheckOverlaps(w)
+
+	if !exited {
+		t.Error("expected OnBodyExited to be called")
+	}
+	if area.GetOverlappingBodyCount() != 0 {
+		t.Errorf("expected 0 overlapping bodies, got %d", area.GetOverlappingBodyCount())
+	}
+}

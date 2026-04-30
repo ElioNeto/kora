@@ -2,47 +2,24 @@ package node
 
 import (
 	stdMath "math"
-
+	
 	"github.com/ElioNeto/kora/core/math"
+	"github.com/ElioNeto/kora/core/physics"
+	"github.com/ElioNeto/kora/core/scene"
 )
 
-// PhysicsBody2D is a node with physics simulation properties
+// PhysicsBody2D is a node that wraps core/physics types.
+// It implements scene.PhysicsNode for SceneTree integration.
 type PhysicsBody2D struct {
 	*Node2D
-
-	// Physics properties
-	linearVelX float64
-	linearVelY float64
-	angularVel float64
-
-	// Physical properties
-	mass       float64
-	friction   float64
-	restitution float64
-	gravityScale float64
-
-	// Collision settings
-	solid       bool
-	trigger     bool
-	collisionGroup int
-
-	// Collision callbacks
-	onCollision    func(other *Node2D, eventType CollisionType)
-	onEnterOverlap func(other *Node2D)
-	onExitOverlap  func(other *Node2D)
+	physicsBody interface{} // Holds the core/physics body type
 }
 
 // NewPhysicsBody2D creates a new PhysicsBody2D node
 func NewPhysicsBody2D(name string) *PhysicsBody2D {
 	node := NewNode2D(name, 0)
 	return &PhysicsBody2D{
-		Node2D:       node,
-		mass:         1.0,
-		friction:     0.5,
-		restitution:  0.3,
-		gravityScale: 1.0,
-		solid:        true,
-		trigger:      false,
+		Node2D: node,
 	}
 }
 

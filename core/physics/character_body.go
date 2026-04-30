@@ -35,16 +35,32 @@ func (c *CharacterBody2D) MoveAndSlide(velocity Vec2, bodies []*RigidBody) Vec2 
 	c.OnWallRight = false
 	c.OnCeiling = false
 
+	// Move in small steps to detect collisions along the path
+	stepSize := float32(4.0) // 4 pixels per sub-step
 	remaining := velocity
+	steps := 0
+	maxSteps := 100
 
-	for slide := 0; slide < c.MaxSlides; slide++ {
-		// Try to move
-		nextPos := Vec2{
-			X: c.Pos.X + remaining.X*c.SafeMargin,
-			Y: c.Pos.Y + remaining.Y*c.SafeMargin,
+	for steps < maxSteps && (remaining.X != 0 || remaining.Y != 0) {
+		steps++
+
+		// Calculate this sub-step movement
+		stepX := remaining.X
+		stepY := remaining.Y
+		if stepX > stepSize {
+			stepX = stepSize
+		} else if stepX < -stepSize {
+			stepX = -stepSize
+		}
+		if stepY > stepSize {
+			stepY = stepSize
+		} else if stepY < -stepSize {
+			stepY = -stepSize
 		}
 
-		// Check collisions at next position
+		// Try this sub-step
+		nextPos := Vec2{X: c.Pos.X + stepX, Y: c.Pos.Y + stepY}
+		oldPos := c.Pos
 		c.Pos = nextPos
 
 		collided := false
@@ -58,9 +74,8 @@ func (c *CharacterBody2D) MoveAndSlide(velocity Vec2, bodies []*RigidBody) Vec2 
 
 			ov := TestAABB(c.RigidBody, b)
 			if ov.Hit {
-				// Resolve collision
-				c.Pos.X += ov.NormalX * ov.DepthX
-				c.Pos.Y += ov.NormalY * ov.DepthY
+				// Restore position and resolve
+				c.Pos = oldPos
 
 				// Track surface types
 				if ov.DepthY > 0 && ov.NormalY < 0 {
@@ -77,7 +92,7 @@ func (c *CharacterBody2D) MoveAndSlide(velocity Vec2, bodies []*RigidBody) Vec2 
 					}
 				}
 
-				// Slide along surface
+				// Consume velocity in collision direction
 				if ov.DepthX > 0 {
 					remaining.X = 0
 				}
@@ -90,10 +105,14 @@ func (c *CharacterBody2D) MoveAndSlide(velocity Vec2, bodies []*RigidBody) Vec2 
 		}
 
 		if !collided {
-			break
+			// Sub-step succeeded, consume the velocity
+			remaining.X -= stepX
+			remaining.Y -= stepY
+		} else {
+			// Collision happened, stop moving in this direction
+			// but continue to try other axis
 		}
 
-		// If velocity mostly consumed, stop sliding
 		if remaining.X*remaining.X+remaining.Y*remaining.Y < 1 {
 			break
 		}
@@ -154,19 +173,29 @@ func (c *CharacterBody2D) GetFloorNormal() Vec2 {
 	return c.FloorNormal
 }
 
+// SetVelocity sets the character's velocity.
+func (c *CharacterBody2D) SetVelocity(vel Vec2) {
+	c.RigidBody.Vel = vel
+}
+
+// GetVelocity returns the character's velocity.
+func (c *CharacterBody2D) GetVelocity() Vec2 {
+	return c.RigidBody.Vel
+}
+
 // KScript API helpers (float64 params)
 
 // MoveAndSlideKS wraps MoveAndSlide for KScript.
 func (c *CharacterBody2D) MoveAndSlideKS(vx, vy float64, world *PhysicsWorld) (float64, float64) {
 	vel := Vec2{float32(vx), float32(vy)}
-	remaining := c.MoveAndSlide(vel, world)
+	remaining := c.MoveAndSlide(vel, world.GetBodies())
 	return float64(remaining.X), float64(remaining.Y)
 }
 
 // MoveAndCollideKS wraps MoveAndCollide for KScript.
 func (c *CharacterBody2D) MoveAndCollideKS(mx, my float64, world *PhysicsWorld) map[string]interface{} {
 	motion := Vec2{float32(mx), float32(my)}
-	info := c.MoveAndCollide(motion, world)
+	info := c.MoveAndCollide(motion, world.GetBodies())
 
 	return map[string]interface{}{
 		"hit":    info.Hit,

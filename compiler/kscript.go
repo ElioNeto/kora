@@ -5,17 +5,23 @@ import (
 )
 
 // RegisterPhysicsAPI registers the Physics namespace and Body methods with KScript.
-func RegisterPhysicsAPI() {
+// world: active PhysicsWorld instance to bind to Physics namespace functions.
+func RegisterPhysicsAPI(world *physics.PhysicsWorld) {
 	// Physics namespace methods
 	registerGlobal("Physics", map[string]interface{}{
 		"setGravity": func(x, y float64) {
-			// Assumes a global default physics world; adjust as needed
-			// For now, use a package-level world or pass from engine
-			// TODO: Connect to the active PhysicsWorld instance
+			world.SetGravity(float32(x), float32(y))
+		},
+		"getGravityX": func() float64 {
+			return float64(world.Gravity.X)
+		},
+		"getGravityY": func() float64 {
+			return float64(world.Gravity.Y)
 		},
 		"raycast": func(fromX, fromY, toX, toY float64, mask int) map[string]interface{} {
-			// TODO: Connect to active PhysicsWorld
-			hit := physics.RaycastHit{}
+			from := physics.Vec2{float32(fromX), float32(fromY)}
+			to := physics.Vec2{float32(toX), float32(toY)}
+			hit := world.Raycast(from, to, uint16(mask))
 			return map[string]interface{}{
 				"hit":      hit.Hit,
 				"pointX":   float64(hit.Point.X),
@@ -26,32 +32,26 @@ func RegisterPhysicsAPI() {
 			}
 		},
 		"overlapRect": func(x, y, w, h float64, mask int) []interface{} {
-			// TODO: Connect to active PhysicsWorld
-			return nil
+			bodies := world.OverlapRect(float32(x), float32(y), float32(w), float32(h), uint16(mask))
+			result := make([]interface{}, len(bodies))
+			for i, b := range bodies {
+				result[i] = b
+			}
+			return result
 		},
 	})
 
-	// Body instance methods
-	registerType("RigidBody", map[string]interface{}{
-		"applyForce": func(b *physics.RigidBody, x, y float64) {
-			b.ApplyForce(physics.Vec2{float32(x), float32(y)})
-		},
-		"applyImpulse": func(b *physics.RigidBody, x, y float64) {
-			b.ApplyImpulse(physics.Vec2{float32(x), float32(y)})
-		},
-		"getVelocity": func(b *physics.RigidBody) (float32, float32) {
-			return b.Vel.X, b.Vel.Y
-		},
-		"setVelocity": func(b *physics.RigidBody, x, y float32) {
-			b.Vel = physics.Vec2{x, y}
-		},
-		"getMass": func(b *physics.RigidBody) float32 {
-			return b.Mass
-		},
-		"setMass": func(b *physics.RigidBody, m float32) {
-			b.Mass = m
-		},
-	})
+	// RigidBody2D instance methods
+	registerType("RigidBody2D", physics.RegisterRigidBody2DAPI())
+
+	// CharacterBody2D instance methods
+	registerType("CharacterBody2D", physics.RegisterCharacterBody2DAPI())
+
+	// StaticBody2D instance methods
+	registerType("StaticBody2D", physics.RegisterStaticBody2DAPI())
+
+	// Area2D instance methods
+	registerType("Area2D", physics.RegisterArea2DAPI())
 }
 
 // TODO: Implement registerGlobal and registerType based on KScript runtime
