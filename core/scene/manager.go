@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ElioNeto/kora/core/async"
 	"github.com/ElioNeto/kora/core/node"
 )
 
@@ -15,7 +14,6 @@ type SceneManager struct {
 	pendingScene  *node.Node2D
 	additiveScenes map[string]*node.Node2D
 	loader        *Loader
-	scheduler     *async.Scheduler
 	
 	// Pending change tracking
 	pendingLoad    string
@@ -24,10 +22,9 @@ type SceneManager struct {
 }
 
 // NewSceneManager creates a new SceneManager
-func NewSceneManager(basePath string, scheduler *async.Scheduler) *SceneManager {
+func NewSceneManager(basePath string) *SceneManager {
 	return &SceneManager{
 		loader:         NewLoader(basePath),
-		scheduler:      scheduler,
 		additiveScenes: make(map[string]*node.Node2D),
 	}
 }
@@ -54,17 +51,9 @@ func (sm *SceneManager) ChangeScene(path string) error {
 	}
 	
 	// Schedule the actual scene swap for the next frame
-	sm.scheduler.Enqueue(func() {
-		sm.changeMutex.Lock()
-		oldScene := sm.activeScene
-		sm.activeScene = newScene
-		sm.changeMutex.Unlock()
-		
-		// Clean up old scene if needed
-		if oldScene != nil {
-			sm.destroyScene(oldScene)
-		}
-	})
+	sm.changeMutex.Lock()
+	sm.pendingScene = newScene
+	sm.changeMutex.Unlock()
 	
 	return nil
 }
@@ -126,7 +115,19 @@ func (sm *SceneManager) Update(dt float64) {
 	for _, scene := range sm.additiveScenes {
 		additive = append(additive, scene)
 	}
-	sm.changeMutex.Unlock()
+	// Process pending scene swap
+	if sm.pendingScene != nil {
+		oldScene := sm.activeScene
+		sm.activeScene = sm.pendingScene
+		sm.pendingScene = nil
+		sm.changeMutex.Unlock()
+		// Clean up old scene outside the lock
+		if oldScene != nil {
+			sm.destroyScene(oldScene)
+		}
+	} else {
+		sm.changeMutex.Unlock()
+	}
 	
 	// Update active scene
 	if active != nil {
@@ -156,7 +157,7 @@ func (sm *SceneManager) Draw() {
 	}
 	
 	// Draw additive scenes
-	for _, scene := range additive {
+	for range additive {
 		// Draw each additive scene
 	}
 }
