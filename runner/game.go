@@ -62,12 +62,15 @@ type SceneFactory func(s *scene.Scene)
 
 // Game is the central game object. Create one with New, then call Run.
 type Game struct {
-	cfg      Config
-	tree     *scene.SceneTree // SceneTree orchestrates the game loop
-	renderer *render.Renderer
-	fade     scene.FadeState
-	ticks    uint64
+	cfg          Config
+	tree         *scene.SceneTree // SceneTree orchestrates the game loop
+	sceneManager *scene.SceneManager
+	renderer     *render.Renderer
+	fade         scene.FadeState
+	ticks        uint64
 }
+
+var gameInstance *Game
 
 // gameTree is the global SceneTree, accessible by KScript-generated code via GameTree().
 var gameTree *scene.SceneTree
@@ -78,12 +81,22 @@ func GameTree() *scene.SceneTree {
 	return gameTree
 }
 
+// GameSceneManager returns the global SceneManager for KScript built-ins.
+func GameSceneManager() *scene.SceneManager {
+	if gameInstance == nil {
+		return nil
+	}
+	return gameInstance.sceneManager
+}
+
 // New creates a Game with the given config and initial scene factory.
 func New(cfg Config, initial SceneFactory) *Game {
 	cfg.apply()
 	g := &Game{cfg: cfg}
+	gameInstance = g
 	g.tree = scene.NewSceneTree()
 	gameTree = g.tree // expose globally for KScript built-ins
+	g.sceneManager = scene.NewSceneManager("scenes")
 	g.tree.SetCurrentScene(scene.New())
 	initial(g.tree.GetCurrentScene())
 	return g
@@ -112,8 +125,8 @@ func (g *Game) Update() error {
 	// Input must be sampled first.
 	input.Update()
 
-	// SceneTree Tick drives the entire game loop (physics + logic).
-	g.tree.Tick(dt)
+	// Delegate to SceneManager
+	g.sceneManager.Update(dt)
 	return nil
 }
 
@@ -125,8 +138,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.renderer.SetScreen(screen)
 	g.renderer.Clear(g.cfg.ClearColor)
 
-	// SceneTree Draw renders everything (runs even when paused).
-	g.tree.Draw(g.renderer)
+	// Delegate to SceneManager
+	g.sceneManager.Draw(g.renderer)
 
 	// Debug overlay.
 	if g.cfg.DebugOverlay {

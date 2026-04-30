@@ -4,6 +4,7 @@ package node
 
 import (
 	"github.com/ElioNeto/kora/core/math"
+	"github.com/ElioNeto/kora/core/render"
 )
 
 // Node2D is the base class for all 2D nodes in the engine
@@ -27,6 +28,9 @@ type Node2D struct {
 
 	// Visibility
 	visible bool
+
+	// Entity lifecycle
+	alive bool
 
 	// Input handling hooks
 	inputHandler  InputHandler
@@ -81,6 +85,27 @@ func NewNode2D(name string, id uint64) *Node2D {
 		scaleX:  1.0,
 		scaleY:  1.0,
 		visible: true,
+		alive:   true,
+	}
+}
+
+// IsAlive implements scene.Entity
+func (n *Node2D) IsAlive() bool {
+	return n.alive
+}
+
+// Destroy implements scene.Entity
+func (n *Node2D) Destroy() {
+	n.alive = false
+}
+
+// Draw renders the node and its children
+func (n *Node2D) Draw(r *render.Renderer) {
+	if !n.visible || !n.alive {
+		return
+	}
+	for _, child := range n.children {
+		child.Draw(r)
 	}
 }
 

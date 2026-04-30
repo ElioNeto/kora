@@ -63,6 +63,18 @@ func NewSceneTree() *SceneTree {
 	}
 }
 
+// LoadSceneFromJSON loads a .kora.json file and registers it as a scene.
+func (st *SceneTree) LoadSceneFromJSON(path string) error {
+	_, err := LoadScene(path)
+	if err != nil {
+		return err
+	}
+	// Wrap Node2D tree into Scene entities (simplified for now)
+	st.scenes[path] = New()
+	// TODO: Convert Node2D tree to Scene entities
+	return nil
+}
+
 // GetCurrentScene returns the currently active scene.
 func (st *SceneTree) GetCurrentScene() *Scene {
 	if st.current == nil {

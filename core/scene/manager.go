@@ -1,191 +1,81 @@
 package scene
 
 import (
-	"fmt"
-	"sync"
+	"errors"
+	"path/filepath"
 
 	"github.com/ElioNeto/kora/core/node"
+	"github.com/ElioNeto/kora/core/render"
 )
 
-// SceneManager handles scene loading, transitions, and additive loading
-// It ensures scene changes happen between frames to avoid corruption
+var ErrSceneManagerNil = errors.New("scene manager is nil")
+
 type SceneManager struct {
-	activeScene   *node.Node2D
-	pendingScene  *node.Node2D
-	additiveScenes map[string]*node.Node2D
-	loader        *Loader
-	
-	// Pending change tracking
-	pendingLoad    string
-	pendingAdditive string
-	changeMutex    sync.Mutex
+	currentScene   *node.Node2D
+	pendingScene   *node.Node2D
+	pendingPath    string
+	additiveScenes []*node.Node2D
+	sceneDir       string
 }
 
-// NewSceneManager creates a new SceneManager
-func NewSceneManager(basePath string) *SceneManager {
+func NewSceneManager(sceneDir string) *SceneManager {
 	return &SceneManager{
-		loader:         NewLoader(basePath),
-		additiveScenes: make(map[string]*node.Node2D),
+		sceneDir:       sceneDir,
+		additiveScenes: make([]*node.Node2D, 0),
 	}
 }
 
-// Load loads a scene from a .kora.json file and returns the root Node2D
 func (sm *SceneManager) Load(path string) (*node.Node2D, error) {
-	sceneRoot, err := sm.loader.LoadScene(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load scene %s: %w", path, err)
-	}
-	return sceneRoot, nil
+	fullPath := filepath.Join(sm.sceneDir, path)
+	return LoadScene(fullPath)
 }
 
-// ChangeScene enqueues a scene change to happen after the current frame
-// This ensures we never change scenes mid-frame
 func (sm *SceneManager) ChangeScene(path string) error {
-	sm.changeMutex.Lock()
-	defer sm.changeMutex.Unlock()
-	
-	// Load the new scene immediately
-	newScene, err := sm.Load(path)
+	fullPath := filepath.Join(sm.sceneDir, path)
+	scene, err := LoadScene(fullPath)
 	if err != nil {
-		return fmt.Errorf("failed to prepare scene change to %s: %w", path, err)
+		return err
 	}
-	
-	// Schedule the actual scene swap for the next frame
-	sm.changeMutex.Lock()
-	sm.pendingScene = newScene
-	sm.changeMutex.Unlock()
-	
+	sm.pendingScene = scene
 	return nil
 }
 
-// LoadAdditive adds a scene on top of the current scene without destroying it
 func (sm *SceneManager) LoadAdditive(path string) error {
-	sceneRoot, err := sm.Load(path)
+	fullPath := filepath.Join(sm.sceneDir, path)
+	scene, err := LoadScene(fullPath)
 	if err != nil {
-		return fmt.Errorf("failed to load additive scene %s: %w", path, err)
+		return err
 	}
-	
-	sm.changeMutex.Lock()
-	sm.additiveScenes[path] = sceneRoot
-	sm.changeMutex.Unlock()
-	
+	sm.additiveScenes = append(sm.additiveScenes, scene)
 	return nil
 }
 
-// Instantiate creates a scene as a prefab at any point in the tree
-func (sm *SceneManager) Instantiate(path string, parent *node.Node2D) (*node.Node2D, error) {
-	sceneRoot, err := sm.Load(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate scene %s: %w", path, err)
-	}
-	
-	// If parent is provided, add the instantiated scene as a child
-	if parent != nil {
-		parent.AddChild(sceneRoot)
-	}
-	
-	return sceneRoot, nil
+func (sm *SceneManager) Instantiate(path string) (*node.Node2D, error) {
+	return sm.Load(path)
 }
 
-// GetActiveScene returns the current active scene root
-func (sm *SceneManager) GetActiveScene() *node.Node2D {
-	sm.changeMutex.Lock()
-	defer sm.changeMutex.Unlock()
-	return sm.activeScene
-}
-
-// GetAdditiveScenes returns all additive scenes
-func (sm *SceneManager) GetAdditiveScenes() map[string]*node.Node2D {
-	sm.changeMutex.Lock()
-	defer sm.changeMutex.Unlock()
-	
-	// Return a copy to avoid race conditions
-	result := make(map[string]*node.Node2D)
-	for k, v := range sm.additiveScenes {
-		result[k] = v
-	}
-	return result
-}
-
-// Update processes updates for the active scene and all additive scenes
 func (sm *SceneManager) Update(dt float64) {
-	sm.changeMutex.Lock()
-	active := sm.activeScene
-	additive := make([]*node.Node2D, 0, len(sm.additiveScenes))
-	for _, scene := range sm.additiveScenes {
-		additive = append(additive, scene)
-	}
-	// Process pending scene swap
 	if sm.pendingScene != nil {
-		oldScene := sm.activeScene
-		sm.activeScene = sm.pendingScene
+		sm.currentScene = sm.pendingScene
 		sm.pendingScene = nil
-		sm.changeMutex.Unlock()
-		// Clean up old scene outside the lock
-		if oldScene != nil {
-			sm.destroyScene(oldScene)
-		}
-	} else {
-		sm.changeMutex.Unlock()
 	}
-	
-	// Update active scene
-	if active != nil {
-		active.Update(dt)
+	if sm.currentScene != nil {
+		sm.currentScene.Update(dt)
 	}
-	
-	// Update additive scenes
-	for _, scene := range additive {
-		scene.Update(dt)
+	for _, s := range sm.additiveScenes {
+		s.Update(dt)
 	}
 }
 
-// Draw renders the active scene and all additive scenes
-func (sm *SceneManager) Draw() {
-	sm.changeMutex.Lock()
-	active := sm.activeScene
-	additive := make([]*node.Node2D, 0, len(sm.additiveScenes))
-	for _, scene := range sm.additiveScenes {
-		additive = append(additive, scene)
-	}
-	sm.changeMutex.Unlock()
-	
-	// Draw active scene
-	if active != nil {
-		// Note: Actual drawing would be handled by a render system
-		// This is a placeholder for the draw call
-	}
-	
-	// Draw additive scenes
-	for range additive {
-		// Draw each additive scene
-	}
+func (sm *SceneManager) CurrentScene() *node.Node2D {
+	return sm.currentScene
 }
 
-// destroyScene cleans up a scene and all its children
-func (sm *SceneManager) destroyScene(scene *node.Node2D) {
-	if scene == nil {
-		return
+func (sm *SceneManager) Draw(r *render.Renderer) {
+	if sm.currentScene != nil {
+		sm.currentScene.Draw(r)
 	}
-	
-	// Remove all children
-	scene.RemoveAllChildren()
-	
-	// Additional cleanup could be done here
-	// For now, just clear the reference
-}
-
-// Reload reloads the current active scene
-func (sm *SceneManager) Reload() error {
-	sm.changeMutex.Lock()
-	active := sm.activeScene
-	sm.changeMutex.Unlock()
-	
-	if active == nil {
-		return fmt.Errorf("no active scene to reload")
+	for _, s := range sm.additiveScenes {
+		s.Draw(r)
 	}
-	
-	// In a real implementation, we would need to track the path of the active scene
-	// For now, this is a placeholder
-	return fmt.Errorf("reload not fully implemented - need to track scene paths")
 }
