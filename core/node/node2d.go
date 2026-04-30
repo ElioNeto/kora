@@ -89,6 +89,11 @@ func (n *Node2D) GetName() string {
 	return n.name
 }
 
+// GetID returns the node id
+func (n *Node2D) GetID() uint64 {
+	return n.id
+}
+
 // SetName sets the node name
 func (n *Node2D) SetName(name string) {
 	n.name = name

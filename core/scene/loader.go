@@ -42,6 +42,7 @@ type KoraEntity struct {
 // Loader handles deserialization of .kora.json files into Node2D trees
 type Loader struct {
 	basePath string
+	nextID   uint64
 }
 
 // NewLoader creates a new scene loader
@@ -133,7 +134,8 @@ func (l *Loader) buildNodeTree(entities []KoraEntity) (*node.Node2D, error) {
 
 // generateID generates a simple ID counter (in real implementation, use proper ID generation)
 func (l *Loader) generateID() uint64 {
-	return 1 // Placeholder - should use proper ID generation
+	l.nextID++
+	return l.nextID
 }
 
 // SerializeScene converts a Node2D tree to KoraScene format
