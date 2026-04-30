@@ -217,7 +217,7 @@ func TestOnCollisionCallback(t *testing.T) {
 	called := false
 	player := dynBody(0, 50, 16, 16)
 	player.Vel.Y = 300
-	player.OnCollision = func(_ *RigidBody) { called = true }
+	player.OnCollision = func(_ *RigidBody, _ Vec2) { called = true }
 	ground := staticBody(0, 100, 200, 20)
 	w.Register(player)
 	w.Register(ground)
@@ -231,5 +231,103 @@ func TestOnCollisionCallback(t *testing.T) {
 	}
 	if !called {
 		t.Error("OnCollision callback was never fired")
+	}
+}
+
+// ------------------------------------------------------------------ Raycast
+
+func TestRaycastHit(t *testing.T) {
+	w := NewWorld(nil)
+	ground := staticBody(0, 100, 200, 20)
+	w.Register(ground)
+
+	from := Vec2{0, 0}
+	to := Vec2{0, 200}
+	hit := w.Raycast(from, to, 0xFFFF)
+	if !hit.Hit {
+		t.Error("expected raycast to hit ground")
+	}
+	if hit.Body != ground {
+		t.Error("raycast hit wrong body")
+	}
+}
+
+func TestRaycastMiss(t *testing.T) {
+	w := NewWorld(nil)
+	ground := staticBody(0, 100, 200, 20)
+	w.Register(ground)
+
+	from := Vec2{300, 0}
+	to := Vec2{300, 200}
+	hit := w.Raycast(from, to, 0xFFFF)
+	if hit.Hit {
+		t.Error("expected raycast to miss")
+	}
+}
+
+func TestRaycastMask(t *testing.T) {
+	w := NewWorld(nil)
+	ground := staticBody(0, 100, 200, 20)
+	ground.Layer = 1 << 1 // Layer 1
+	w.Register(ground)
+
+	from := Vec2{0, 0}
+	to := Vec2{0, 200}
+	// Mask only layer 0, so no hit
+	hit := w.Raycast(from, to, 1<<0)
+	if hit.Hit {
+		t.Error("expected no hit with wrong mask")
+	}
+}
+
+// ------------------------------------------------------------------ OverlapRect
+
+func TestOverlapRect(t *testing.T) {
+	w := NewWorld(nil)
+	body := dynBody(50, 50, 16, 16)
+	w.Register(body)
+
+	// Rect covering the body
+	results := w.OverlapRect(40, 40, 60, 60, 0xFFFF)
+	if len(results) != 1 || results[0] != body {
+		t.Error("expected body to be in overlap rect")
+	}
+}
+
+// ------------------------------------------------------------------ Circle Collision
+
+func TestCircleCircleCollision(t *testing.T) {
+	w := NewWorld(nil)
+	a := NewCircleBody(0, 0, 0, 10, BodyDynamic)
+	b := NewCircleBody(1, 15, 0, 10, BodyStatic)
+	w.Register(a)
+	w.Register(b)
+
+	// Circles are 15 units apart, radii sum 20, so overlapping
+	ov := TestCircleCircle(a, b)
+	if !ov.Hit {
+		t.Error("expected circle-circle collision")
+	}
+}
+
+func TestLayerMaskCollision(t *testing.T) {
+	w := NewWorld(nil)
+	player := dynBody(0, 50, 16, 16)
+	player.Layer = 1 << 0
+	ground := staticBody(0, 100, 200, 20)
+	ground.Layer = 1 << 1
+	ground.Mask = 0 // Collides with nothing
+	w.Register(player)
+	w.Register(ground)
+
+	const dt = 1.0 / 60.0
+	for i := 0; i < 120; i++ {
+		w.Step(dt)
+	}
+	// Player should pass through ground since ground's mask is 0
+	_, _, _, playerMaxY := player.AABB()
+	_, groundMinY, _, _ := ground.AABB()
+	if playerMaxY < groundMinY {
+		t.Error("player should have passed through ground due to layer/mask")
 	}
 }

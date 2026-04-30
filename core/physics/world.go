@@ -1,8 +1,11 @@
 package physics
 
 const (
-	// DefaultGravity is in pixels per second squared (down = +Y).
-	DefaultGravity float32 = 980
+	// DefaultGravityX/Y defines standard gravity in px/s² (down = +Y).
+	DefaultGravityX float32 = 0
+	DefaultGravityY float32 = 980
+	// FixedPhysicsStep is the fixed timestep for physics (60 TPS).
+	FixedPhysicsStep float32 = 1.0 / 60.0
 	// TerminalVelocity caps the falling speed.
 	TerminalVelocity float32 = 1200
 )
@@ -11,20 +14,49 @@ const (
 // world position (px, py) is solid. Provided by core/render/tilemap.
 type TileQuery func(px, py float32) bool
 
-// PhysicsWorld manages all bodies and drives the simulation.
+// PhysicsWorld manages all bodies and drives the simulation at fixed 60 TPS.
 type PhysicsWorld struct {
-	Gravity float32
-	bodies  []*RigidBody
-	tileQ   TileQuery
+	Gravity     Vec2
+	accumulator float32
+	bodies      []*RigidBody
+	tileQ       TileQuery
 }
 
-// NewWorld creates a PhysicsWorld with standard gravity.
+// NewWorld creates a PhysicsWorld with standard gravity (0, 980).
 // tileQuery may be nil if no tilemap is used.
 func NewWorld(tileQuery TileQuery) *PhysicsWorld {
 	return &PhysicsWorld{
-		Gravity: DefaultGravity,
+		Gravity: Vec2{DefaultGravityX, DefaultGravityY},
 		tileQ:   tileQuery,
 	}
+}
+
+// SetGravity updates the global gravity vector.
+func (w *PhysicsWorld) SetGravity(x, y float32) {
+	w.Gravity = Vec2{x, y}
+}
+
+// OverlapRect returns all bodies overlapping the given rectangle that match the mask.
+// rect is defined by minX, minY, maxX, maxY.
+func (w *PhysicsWorld) OverlapRect(minX, minY, maxX, maxY float32, mask uint16) []*RigidBody {
+	var result []*RigidBody
+	for _, b := range w.bodies {
+		if (b.Layer & mask) == 0 {
+			continue
+		}
+		bMinX, bMinY, bMaxX, bMaxY := b.AABB()
+		// Check AABB overlap
+		if bMaxX <= minX || bMinX >= maxX || bMaxY <= minY || bMinY >= maxY {
+			continue
+		}
+		result = append(result, b)
+	}
+	return result
+}
+
+// GetBodies returns all registered bodies (for CharacterBody2D collision checks).
+func (w *PhysicsWorld) GetBodies() []*RigidBody {
+	return w.bodies
 }
 
 // Register adds a body to the simulation.
@@ -52,9 +84,18 @@ func (w *PhysicsWorld) BodyFor(entityID int) *RigidBody {
 	return nil
 }
 
-// Step advances the simulation by dt seconds.
-// Call once per game frame (e.g., from runner/game.go Update).
+// Step accumulates frame dt and runs fixed 60 TPS physics steps.
+// Call once per render frame with the actual delta time.
 func (w *PhysicsWorld) Step(dt float32) {
+	w.accumulator += dt
+	for w.accumulator >= FixedPhysicsStep {
+		w.accumulator -= FixedPhysicsStep
+		w.stepFixed(FixedPhysicsStep)
+	}
+}
+
+// stepFixed runs one fixed physics step with the given dt (1/60s).
+func (w *PhysicsWorld) stepFixed(dt float32) {
 	for _, b := range w.bodies {
 		if b.Type == BodyStatic {
 			continue
@@ -64,9 +105,10 @@ func (w *PhysicsWorld) Step(dt float32) {
 		b.IsGrounded = false
 		b.IsTouching = [4]bool{}
 
-		// Apply gravity
+		// Apply gravity (2D)
 		if b.Type == BodyDynamic {
-			b.Vel.Y += w.Gravity * b.Gravity * dt
+			b.Vel.X += w.Gravity.X * b.Gravity * dt
+			b.Vel.Y += w.Gravity.Y * b.Gravity * dt
 			if b.Vel.Y > TerminalVelocity {
 				b.Vel.Y = TerminalVelocity
 			}
@@ -78,38 +120,36 @@ func (w *PhysicsWorld) Step(dt float32) {
 	}
 
 	// Body-body collision (O(n²) — fine for small entity counts)
-	// Check all pairs (i, j) where i < j to avoid duplicates
 	for i := 0; i < len(w.bodies); i++ {
 		for j := i + 1; j < len(w.bodies); j++ {
 			a := w.bodies[i]
 			b := w.bodies[j]
 
-			// Skip static-static pairs (they never move)
+			// Skip if layers don't match masks
+			if (a.Layer&b.Mask) == 0 || (b.Layer&a.Mask) == 0 {
+				continue
+			}
+
 			if a.Type == BodyStatic && b.Type == BodyStatic {
 				continue
 			}
 
-			// Dynamic-dynamic: resolve both directions
 			if a.Type == BodyDynamic && b.Type == BodyDynamic {
-				ResolveAABB(a, b)
-				ResolveAABB(b, a)
+				ResolveCollision(a, b)
+				ResolveCollision(b, a)
 				continue
 			}
 
-			// One is dynamic, one is static/kinematic:
-			// Only resolve on the dynamic body
-			var dynamic, static *RigidBody
+			var dynamic, other *RigidBody
 			if a.Type == BodyDynamic {
-				dynamic, static = a, b
+				dynamic, other = a, b
 			} else {
-				// b is dynamic (a is static or kinematic)
-				dynamic, static = b, a
+				dynamic, other = b, a
 			}
 			if dynamic.Type == BodyKinematic {
-				// Kinematic doesn't react to collisions
 				continue
 			}
-			ResolveAABB(dynamic, static)
+			ResolveCollision(dynamic, other)
 		}
 	}
 
