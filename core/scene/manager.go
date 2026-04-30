@@ -13,7 +13,7 @@ var ErrSceneManagerNil = errors.New("scene manager is nil")
 type SceneManager struct {
 	currentScene   *node.Node2D
 	pendingScene   *node.Node2D
-	pendingPath    string
+	pendingPath    string // path for deferred loading
 	additiveScenes []*node.Node2D
 	sceneDir       string
 }
@@ -31,12 +31,9 @@ func (sm *SceneManager) Load(path string) (*node.Node2D, error) {
 }
 
 func (sm *SceneManager) ChangeScene(path string) error {
-	fullPath := filepath.Join(sm.sceneDir, path)
-	scene, err := LoadScene(fullPath)
-	if err != nil {
-		return err
-	}
-	sm.pendingScene = scene
+	// Queue the path for loading in the next Update, ensuring we never
+	// load mid-frame. The actual scene switch happens in Update.
+	sm.pendingPath = path
 	return nil
 }
 
@@ -55,6 +52,17 @@ func (sm *SceneManager) Instantiate(path string) (*node.Node2D, error) {
 }
 
 func (sm *SceneManager) Update(dt float64) {
+	// Handle deferred scene loading (ChangeScene queued a path)
+	if sm.pendingPath != "" {
+		fullPath := filepath.Join(sm.sceneDir, sm.pendingPath)
+		scene, err := LoadScene(fullPath)
+		if err == nil {
+			sm.pendingScene = scene
+		}
+		// If error, we just skip; maybe log later
+		sm.pendingPath = ""
+	}
+	// Apply pending scene change
 	if sm.pendingScene != nil {
 		sm.currentScene = sm.pendingScene
 		sm.pendingScene = nil

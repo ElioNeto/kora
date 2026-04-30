@@ -97,6 +97,9 @@ func New(cfg Config, initial SceneFactory) *Game {
 	g.tree = scene.NewSceneTree()
 	gameTree = g.tree // expose globally for KScript built-ins
 	g.sceneManager = scene.NewSceneManager("scenes")
+	// Register KScript API
+	scene.SetKScriptAPIManager(g.sceneManager)
+	scene.SetKScriptAPITree(g.tree)
 	g.tree.SetCurrentScene(scene.New())
 	initial(g.tree.GetCurrentScene())
 	return g
