@@ -81,7 +81,7 @@ func TestRemoveChild(t *testing.T) {
 	parent.AddChild(child1)
 	parent.AddChild(child2)
 
-	parent.RemoveChild(child1)
+	parent.RemoveChild("Child1")
 
 	if parent.GetChildCount() != 1 {
 		t.Errorf("Expected 1 child after removal, got %d", parent.GetChildCount())
@@ -91,6 +91,75 @@ func TestRemoveChild(t *testing.T) {
 	}
 	if parent.GetChild("Child1") != nil {
 		t.Error("Removed child should not be found")
+	}
+}
+
+func TestGetNodeByPath(t *testing.T) {
+	parent := NewNode2D("Parent", 1)
+	child1 := NewNode2D("Child1", 2)
+	child2 := NewNode2D("Child2", 3)
+	grandchild := NewNode2D("Grandchild", 4)
+
+	parent.AddChild(child1)
+	parent.AddChild(child2)
+	child1.AddChild(grandchild)
+
+	// Test direct child
+	node := parent.GetNode("Child1")
+	if node == nil || node.Name() != "Child1" {
+		t.Error("GetNode should return Child1")
+	}
+
+	// Test non-existent child
+	node = parent.GetNode("NonExistent")
+	if node != nil {
+		t.Error("GetNode should return nil for non-existent path")
+	}
+
+	// Test deep path
+	node = parent.GetNode("Child1/Grandchild")
+	if node == nil || node.Name() != "Grandchild" {
+		t.Error("GetNode should return Grandchild")
+	}
+
+	// Test invalid path format
+	node = parent.GetNode("")
+	if node != nil {
+		t.Error("GetNode should return nil for empty path")
+	}
+}
+
+func TestGetNodeDeepPath(t *testing.T) {
+	// Create a 3-level tree: A -> B -> C
+	a := NewNode2D("A", 1)
+	b := NewNode2D("B", 2)
+	c := NewNode2D("C", 3)
+
+	a.AddChild(b)
+	b.AddChild(c)
+
+	// Test 3-level path
+	node := a.GetNode("B/C")
+	if node == nil || node.Name() != "C" {
+		t.Error("GetNode should return C for path 'B/C'")
+	}
+
+	// Test getting A from itself (empty path after split returns nil)
+	node = a.GetNode("A")
+	if node == nil || node.Name() != "A" {
+		t.Error("GetNode should return A for path 'A'")
+	}
+}
+
+func TestNodeInterface(t *testing.T) {
+	// Verify that *Node2D satisfies the Node interface at compile time
+	var _ Node = (*Node2D)(nil)
+
+	// Also verify at runtime
+	node := NewNode2D("Test", 1)
+	var n Node = node
+	if n.Name() != "Test" {
+		t.Error("Node interface not satisfied correctly")
 	}
 }
 

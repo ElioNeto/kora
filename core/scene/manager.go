@@ -73,9 +73,9 @@ func (sm *SceneManager) CurrentScene() *node.Node2D {
 
 func (sm *SceneManager) Draw(r *render.Renderer) {
 	if sm.currentScene != nil {
-		sm.currentScene.Draw(r)
+		sm.currentScene.Render(r)
 	}
 	for _, s := range sm.additiveScenes {
-		s.Draw(r)
+		s.Render(r)
 	}
 }

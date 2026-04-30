@@ -3,6 +3,8 @@
 package node
 
 import (
+	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/ElioNeto/kora/core/math"
 	"github.com/ElioNeto/kora/core/render"
 )
@@ -99,18 +101,36 @@ func (n *Node2D) Destroy() {
 	n.alive = false
 }
 
-// Draw renders the node and its children
-func (n *Node2D) Draw(r *render.Renderer) {
+// Render renders the node and its children using the internal renderer
+func (n *Node2D) Render(r *render.Renderer) {
 	if !n.visible || !n.alive {
 		return
 	}
 	for _, child := range n.children {
-		child.Draw(r)
+		child.Render(r)
 	}
 }
 
+// Draw satisfies the Node interface (renders to ebiten.Image)
+func (n *Node2D) Draw(screen *ebiten.Image) {
+	if !n.visible || !n.alive {
+		return
+	}
+	for _, child := range n.children {
+		child.Draw(screen)
+	}
+}
+
+// Compile-time interface check
+var _ Node = (*Node2D)(nil)
+
 // GetName returns the node name
 func (n *Node2D) GetName() string {
+	return n.name
+}
+
+// Name returns the node name (satisfies Node interface)
+func (n *Node2D) Name() string {
 	return n.name
 }
 
@@ -129,31 +149,54 @@ func (n *Node2D) GetParent() *Node2D {
 	return n.parent
 }
 
-// AddChild adds a child node to this node
-func (n *Node2D) AddChild(child *Node2D) {
+// Parent returns the parent node as Node interface (satisfies Node interface)
+func (n *Node2D) Parent() Node {
+	if n.parent == nil {
+		return nil
+	}
+	return n.parent
+}
+
+// Children returns children as []Node (satisfies Node interface)
+func (n *Node2D) Children() []Node {
+	result := make([]Node, len(n.children))
+	for i, child := range n.children {
+		result[i] = child
+	}
+	return result
+}
+
+// AddChild adds a child node to this node (satisfies Node interface)
+func (n *Node2D) AddChild(child Node) {
 	if child == nil {
+		return
+	}
+
+	// Type assert to *Node2D for internal storage
+	node2d, ok := child.(*Node2D)
+	if !ok {
 		return
 	}
 
 	// Check if already child
 	for _, c := range n.children {
-		if c == child {
+		if c == node2d {
 			return
 		}
 	}
 
 	// Set parent
-	child.parent = n
-	n.children = append(n.children, child)
+	node2d.parent = n
+	n.children = append(n.children, node2d)
 }
 
-// RemoveChild removes a child node from this node
-func (n *Node2D) RemoveChild(child *Node2D) {
+// RemoveChild removes a child node by name (satisfies Node interface)
+func (n *Node2D) RemoveChild(name string) {
 	for i, c := range n.children {
-		if c == child {
+		if c.GetName() == name {
 			// Remove from slice
 			n.children = append(n.children[:i], n.children[i+1:]...)
-			child.parent = nil
+			c.parent = nil
 			return
 		}
 	}
@@ -180,6 +223,63 @@ func (n *Node2D) GetChild(name string) *Node2D {
 // GetChildren returns all children
 func (n *Node2D) GetChildren() []*Node2D {
 	return n.children
+}
+
+// GetNode returns a node by path (e.g., "Player/Sprite")
+// Returns nil if the path does not exist
+func (n *Node2D) GetNode(path string) Node {
+	if path == "" {
+		return nil
+	}
+
+	parts := splitPath(path)
+	if len(parts) == 0 {
+		return nil
+	}
+
+	// If the first part matches the current node's name, skip it
+	// (i.e., "A/B/C" starting from node A means start from A)
+	startIdx := 0
+	if parts[0] == n.GetName() {
+		startIdx = 1
+	}
+
+	current := n
+	for i := startIdx; i < len(parts); i++ {
+		part := parts[i]
+		found := false
+		for _, child := range current.children {
+			if child.GetName() == part {
+				current = child
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil
+		}
+	}
+	return current
+}
+
+// splitPath splits a path by "/" separator
+func splitPath(path string) []string {
+	result := []string{}
+	current := ""
+	for i := 0; i < len(path); i++ {
+		if path[i] == '/' {
+			if current != "" {
+				result = append(result, current)
+			}
+			current = ""
+		} else {
+			current += string(path[i])
+		}
+	}
+	if current != "" {
+		result = append(result, current)
+	}
+	return result
 }
 
 // GetChildCount returns the number of children
