@@ -70,8 +70,8 @@ func (a *Area2D) CheckOverlaps(world *PhysicsWorld) {
 	// Check body overlaps
 	a.checkBodyOverlaps(world)
 
-	// Check area overlaps (simplified - check other areas)
-	// This would need access to all areas in the world
+	// Check area overlaps
+	a.checkAreaOverlaps(world)
 }
 
 // checkBodyOverlaps detects bodies entering/exiting the area.
@@ -120,6 +120,62 @@ func (a *Area2D) checkBodyOverlaps(world *PhysicsWorld) {
 	a.overlappingBodies = remaining
 }
 
+// checkAreaOverlaps detects areas entering/exiting the area.
+func (a *Area2D) checkAreaOverlaps(world *PhysicsWorld) {
+	minX, minY, maxX, maxY := a.AABB()
+
+	// Areas that are currently overlapping
+	currentOverlaps := make(map[*Area2D]bool)
+
+	for _, other := range world.areas {
+		if other.EntityID == a.EntityID {
+			continue
+		}
+		if (a.Layer & other.Mask) == 0 || (other.Layer & a.Mask) == 0 {
+			continue
+		}
+
+		otherMinX, otherMinY, otherMaxX, otherMaxY := other.AABB()
+		if otherMaxX <= minX || otherMinX >= maxX || otherMaxY <= minY || otherMinY >= maxY {
+			continue
+		}
+
+		// Area is overlapping
+		currentOverlaps[other] = true
+
+		// Check if this is a new overlap
+		if !a.isAreaOverlapping(other) {
+			a.overlappingAreas = append(a.overlappingAreas, other)
+			if a.OnAreaEntered != nil {
+				a.OnAreaEntered(other)
+			}
+		}
+	}
+
+	// Check for areas that exited
+	var remaining []*Area2D
+	for _, other := range a.overlappingAreas {
+		if currentOverlaps[other] {
+			remaining = append(remaining, other)
+		} else {
+			if a.OnAreaExited != nil {
+				a.OnAreaExited(other)
+			}
+		}
+	}
+	a.overlappingAreas = remaining
+}
+
+// isAreaOverlapping checks if an area is in the overlap list.
+func (a *Area2D) isAreaOverlapping(area *Area2D) bool {
+	for _, other := range a.overlappingAreas {
+		if other == area {
+			return true
+		}
+	}
+	return false
+}
+
 // isBodyOverlapping checks if a body is in the overlap list.
 func (a *Area2D) isBodyOverlapping(body *RigidBody) bool {
 	for _, b := range a.overlappingBodies {
@@ -142,6 +198,18 @@ func (a *Area2D) GetOverlappingBodyCount() int {
 	return len(a.overlappingBodies)
 }
 
+// GetOverlappingAreas returns all currently overlapping areas.
+func (a *Area2D) GetOverlappingAreas() []*Area2D {
+	result := make([]*Area2D, len(a.overlappingAreas))
+	copy(result, a.overlappingAreas)
+	return result
+}
+
+// GetOverlappingAreaCount returns the number of overlapping areas.
+func (a *Area2D) GetOverlappingAreaCount() int {
+	return len(a.overlappingAreas)
+}
+
 // SetMonitorEnabled enables/disables detection.
 func (a *Area2D) SetMonitorEnabled(enabled bool) {
 	a.MonitorEnabled = enabled
@@ -159,6 +227,15 @@ func (a *Area2D) GetOverlappingBodiesKS() []interface{} {
 	result := make([]interface{}, len(a.overlappingBodies))
 	for i, b := range a.overlappingBodies {
 		result[i] = b
+	}
+	return result
+}
+
+// GetOverlappingAreasKS returns overlapping areas as interface slice for KScript.
+func (a *Area2D) GetOverlappingAreasKS() []interface{} {
+	result := make([]interface{}, len(a.overlappingAreas))
+	for i, area := range a.overlappingAreas {
+		result[i] = area
 	}
 	return result
 }
@@ -198,8 +275,7 @@ func RegisterArea2DAPI() map[string]interface{} {
 			return instance.GetOverlappingBodiesKS()
 		},
 		"getOverlappingAreas": func(instance *Area2D) []interface{} {
-			// TODO: Implement overlapping areas tracking
-			return []interface{}{}
+			return instance.GetOverlappingAreasKS()
 		},
 		"setMonitorEnabled": func(instance *Area2D, enabled bool) {
 			instance.SetMonitorEnabled(enabled)

@@ -12,27 +12,20 @@ func RegisterPhysicsAPI(world *physics.PhysicsWorld) {
 		"setGravity": func(x, y float64) {
 			world.SetGravity(float32(x), float32(y))
 		},
-		"getGravityX": func() float64 {
-			return float64(world.Gravity.X)
-		},
-		"getGravityY": func() float64 {
-			return float64(world.Gravity.Y)
-		},
 		"raycast": func(fromX, fromY, toX, toY float64, mask int) map[string]interface{} {
 			from := physics.Vec2{float32(fromX), float32(fromY)}
 			to := physics.Vec2{float32(toX), float32(toY)}
 			hit := world.Raycast(from, to, uint16(mask))
 			return map[string]interface{}{
-				"hit":      hit.Hit,
-				"pointX":   float64(hit.Point.X),
-				"pointY":   float64(hit.Point.Y),
-				"normalX":  float64(hit.Normal.X),
-				"normalY":  float64(hit.Normal.Y),
-				"fraction": float64(hit.Fraction),
+				"hit":     hit.Hit,
+				"x":       float64(hit.Point.X),
+				"y":       float64(hit.Point.Y),
+				"normalX": float64(hit.Normal.X),
+				"normalY": float64(hit.Normal.Y),
 			}
 		},
-		"overlapRect": func(x, y, w, h float64, mask int) []interface{} {
-			bodies := world.OverlapRect(float32(x), float32(y), float32(w), float32(h), uint16(mask))
+		"overlapRect": func(minX, minY, maxX, maxY float64, mask int) []interface{} {
+			bodies := world.OverlapRect(float32(minX), float32(minY), float32(maxX), float32(maxY), uint16(mask))
 			result := make([]interface{}, len(bodies))
 			for i, b := range bodies {
 				result[i] = b

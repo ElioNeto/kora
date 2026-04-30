@@ -14,11 +14,12 @@ const (
 // world position (px, py) is solid. Provided by core/render/tilemap.
 type TileQuery func(px, py float32) bool
 
-// PhysicsWorld manages all bodies and drives the simulation at fixed 60 TPS.
+// PhysicsWorld manages all bodies and areas and drives the simulation at fixed 60 TPS.
 type PhysicsWorld struct {
 	Gravity     Vec2
 	accumulator float32
 	bodies      []*RigidBody
+	areas       []*Area2D
 	tileQ       TileQuery
 }
 
@@ -27,6 +28,8 @@ type PhysicsWorld struct {
 func NewWorld(tileQuery TileQuery) *PhysicsWorld {
 	return &PhysicsWorld{
 		Gravity: Vec2{DefaultGravityX, DefaultGravityY},
+		bodies:  make([]*RigidBody, 0),
+		areas:   make([]*Area2D, 0),
 		tileQ:   tileQuery,
 	}
 }
@@ -64,11 +67,34 @@ func (w *PhysicsWorld) Register(b *RigidBody) {
 	w.bodies = append(w.bodies, b)
 }
 
+// RegisterArea adds an area to the simulation.
+func (w *PhysicsWorld) RegisterArea(a *Area2D) {
+	w.areas = append(w.areas, a)
+}
+
 // Remove detaches a body from the simulation.
 func (w *PhysicsWorld) Remove(entityID int) {
 	for i, b := range w.bodies {
 		if b.EntityID == entityID {
 			w.bodies = append(w.bodies[:i], w.bodies[i+1:]...)
+			return
+		}
+	}
+	
+	// Also check areas
+	for i, a := range w.areas {
+		if a.EntityID == entityID {
+			w.areas = append(w.areas[:i], w.areas[i+1:]...)
+			return
+		}
+	}
+}
+
+// RemoveArea detaches an area from the simulation.
+func (w *PhysicsWorld) RemoveArea(entityID int) {
+	for i, a := range w.areas {
+		if a.EntityID == entityID {
+			w.areas = append(w.areas[:i], w.areas[i+1:]...)
 			return
 		}
 	}
@@ -150,6 +176,13 @@ func (w *PhysicsWorld) stepFixed(dt float32) {
 				continue
 			}
 			ResolveCollision(dynamic, other)
+		}
+	}
+
+	// Area-body monitoring
+	for _, area := range w.areas {
+		if area.MonitorEnabled {
+			area.CheckOverlaps(w)
 		}
 	}
 

@@ -442,3 +442,78 @@ func TestArea2DBodyExited(t *testing.T) {
 		t.Errorf("expected 0 overlapping bodies, got %d", area.GetOverlappingBodyCount())
 	}
 }
+
+// TestArea2DAreaEntered tests that OnAreaEntered is fired when areas overlap
+func TestArea2DAreaEntered(t *testing.T) {
+	w := NewWorld(nil)
+	areaA := NewArea2D(100, 50, 50, 30, 30) // AABB: 35-65, 35-65
+	areaB := NewArea2D(200, 60, 60, 30, 30) // AABB: 45-75, 45-75 (overlaps with A)
+	
+	w.RegisterArea(areaA)
+	w.RegisterArea(areaB)
+	
+	entered := false
+	areaA.OnAreaEntered = func(a *Area2D) {
+		if a != areaB {
+			t.Error("wrong area passed to OnAreaEntered")
+		}
+		entered = true
+	}
+	
+	// Check overlaps (normally called by world.Step)
+	areaA.CheckOverlaps(w)
+	areaB.CheckOverlaps(w)
+	
+	if !entered {
+		t.Error("expected OnAreaEntered to be called")
+	}
+	if areaA.GetOverlappingAreaCount() != 1 {
+		t.Errorf("expected 1 overlapping area, got %d", areaA.GetOverlappingAreaCount())
+	}
+	if areaB.GetOverlappingAreaCount() != 1 {
+		t.Errorf("expected 1 overlapping area, got %d", areaB.GetOverlappingAreaCount())
+	}
+}
+
+// TestArea2DAreaExited tests that OnAreaExited is fired when areas stop overlapping
+func TestArea2DAreaExited(t *testing.T) {
+	w := NewWorld(nil)
+	areaA := NewArea2D(100, 50, 50, 30, 30) // AABB: 35-65, 35-65
+	areaB := NewArea2D(200, 60, 60, 30, 30) // AABB: 45-75, 45-75 (overlaps with A)
+	
+	w.RegisterArea(areaA)
+	w.RegisterArea(areaB)
+	
+	exited := false
+	areaA.OnAreaExited = func(a *Area2D) {
+		if a != areaB {
+			t.Error("wrong area passed to OnAreaExited")
+		}
+		exited = true
+	}
+	
+	// Check overlaps - areas are overlapping
+	areaA.CheckOverlaps(w)
+	areaB.CheckOverlaps(w)
+	if areaA.GetOverlappingAreaCount() != 1 {
+		t.Error("expected areas to be overlapping")
+	}
+	
+	// Move areaB far away
+	areaB.Pos.X = 500
+	areaB.Pos.Y = 500
+	
+	// Check overlaps again
+	areaA.CheckOverlaps(w)
+	areaB.CheckOverlaps(w)
+	
+	if !exited {
+		t.Error("expected OnAreaExited to be called")
+	}
+	if areaA.GetOverlappingAreaCount() != 0 {
+		t.Errorf("expected 0 overlapping areas, got %d", areaA.GetOverlappingAreaCount())
+	}
+	if areaB.GetOverlappingAreaCount() != 0 {
+		t.Errorf("expected 0 overlapping areas, got %d", areaB.GetOverlappingAreaCount())
+	}
+}
