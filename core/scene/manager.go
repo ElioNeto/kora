@@ -47,7 +47,7 @@ func (sm *SceneManager) LoadAdditive(path string) error {
 	return nil
 }
 
-func (sm *SceneManager) Instantiate(path string) (*node.Node2D, error) {
+func (sm *SceneManager) Instantiate(path string) (node.Node, error) {
 	return sm.Load(path)
 }
 

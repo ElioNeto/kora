@@ -26,17 +26,17 @@ func SetKScriptAPITree(st *SceneTree) {
 	kscriptTree = st
 }
 
-// SceneLoad loads a scene by path (KScript: Scene.load).
+// SceneLoad loads a scene by path and sets it as current (KScript: Scene.load).
 func SceneLoad(name string) {
 	if kscriptManager == nil {
 		return
 	}
-	_, _ = kscriptManager.Load(name)
+	kscriptManager.ChangeScene(name)
 }
 
 // SceneInstantiate instantiates a scene as a prefab (KScript: Scene.instantiate).
-// Returns a node.Node2D that can be added to a scene tree.
-func SceneInstantiate(name string) *node.Node2D {
+// Returns a node.Node that can be added to a scene tree.
+func SceneInstantiate(name string) node.Node {
 	if kscriptManager == nil {
 		return nil
 	}

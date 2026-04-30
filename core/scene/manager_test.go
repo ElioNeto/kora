@@ -89,8 +89,8 @@ func TestInstantiatePrefab(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Instantiate failed: %v", err)
 	}
-	if prefab.GetName() != "Prefab" {
-		t.Errorf("expected prefab name Prefab, got %s", prefab.GetName())
+	if prefab.Name() != "Prefab" {
+		t.Errorf("expected prefab name Prefab, got %s", prefab.Name())
 	}
 }
 
