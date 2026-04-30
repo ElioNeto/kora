@@ -92,3 +92,25 @@ func (s *StaticBody2D) GetBouncinessKS() float64 {
 func (s *StaticBody2D) SetBouncinessKS(b float64) {
 	s.SetBounciness(float32(b))
 }
+
+// RegisterStaticBody2DAPI returns the KScript API for StaticBody2D.
+func RegisterStaticBody2DAPI() map[string]interface{} {
+	return map[string]interface{}{
+		"getFriction": func(instance *StaticBody2D) float64 {
+			return instance.GetFrictionKS()
+		},
+		"setFriction": func(instance *StaticBody2D, friction float64) {
+			instance.SetFrictionKS(friction)
+		},
+		"getBounciness": func(instance *StaticBody2D) float64 {
+			return instance.GetBouncinessKS()
+		},
+		"setBounciness": func(instance *StaticBody2D, bounciness float64) {
+			instance.SetBouncinessKS(bounciness)
+		},
+		"setMaterial": func(instance *StaticBody2D, friction, bounciness float64) {
+			instance.SetFrictionKS(friction)
+			instance.SetBouncinessKS(bounciness)
+		},
+	}
+}

@@ -213,3 +213,47 @@ type CollisionInfo struct {
 	Normal Vec2
 	Pos    Vec2
 }
+
+// RegisterCharacterBody2DAPI returns the KScript API for CharacterBody2D.
+func RegisterCharacterBody2DAPI() map[string]interface{} {
+	return map[string]interface{}{
+		"moveAndSlide": func(instance *CharacterBody2D, vx, vy float64, world *PhysicsWorld) (float64, float64) {
+			return instance.MoveAndSlideKS(vx, vy, world)
+		},
+		"moveAndCollide": func(instance *CharacterBody2D, mx, my float64, world *PhysicsWorld) map[string]interface{} {
+			return instance.MoveAndCollideKS(mx, my, world)
+		},
+		"isOnFloor": func(instance *CharacterBody2D) bool {
+			return instance.IsOnFloor()
+		},
+		"isOnWall": func(instance *CharacterBody2D) bool {
+			return instance.IsOnWall()
+		},
+		"isOnCeiling": func(instance *CharacterBody2D) bool {
+			return instance.IsOnCeiling()
+		},
+		"getFloorNormal": func(instance *CharacterBody2D) (float64, float64) {
+			n := instance.GetFloorNormal()
+			return float64(n.X), float64(n.Y)
+		},
+		"setVelocity": func(instance *CharacterBody2D, vx, vy float64) {
+			instance.SetVelocity(Vec2{float32(vx), float32(vy)})
+		},
+		"getVelocity": func(instance *CharacterBody2D) (float64, float64) {
+			v := instance.GetVelocity()
+			return float64(v.X), float64(v.Y)
+		},
+		"setSafeMargin": func(instance *CharacterBody2D, margin float64) {
+			instance.SafeMargin = float32(margin)
+		},
+		"getSafeMargin": func(instance *CharacterBody2D) float64 {
+			return float64(instance.SafeMargin)
+		},
+		"setMaxSlides": func(instance *CharacterBody2D, slides int) {
+			instance.MaxSlides = slides
+		},
+		"getMaxSlides": func(instance *CharacterBody2D) int {
+			return instance.MaxSlides
+		},
+	}
+}

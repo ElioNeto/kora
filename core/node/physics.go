@@ -4,8 +4,6 @@ import (
 	stdMath "math"
 	
 	"github.com/ElioNeto/kora/core/math"
-	"github.com/ElioNeto/kora/core/physics"
-	"github.com/ElioNeto/kora/core/scene"
 )
 
 // PhysicsBody2D is a node that wraps core/physics types.
@@ -13,13 +11,43 @@ import (
 type PhysicsBody2D struct {
 	*Node2D
 	physicsBody interface{} // Holds the core/physics body type
+	
+	// Common physics properties
+	mass        float64
+	friction    float64
+	restitution float64
+	gravityScale float64
+	linearVelX  float64
+	linearVelY  float64
+	angularVel  float64
+	solid       bool
+	trigger     bool
+	collisionGroup int
+	
+	// Callbacks
+	onCollision          func(other *Node2D, eventType CollisionType)
+	onEnterOverlap       func(other *Node2D)
+	onExitOverlap        func(other *Node2D)
 }
 
 // NewPhysicsBody2D creates a new PhysicsBody2D node
 func NewPhysicsBody2D(name string) *PhysicsBody2D {
 	node := NewNode2D(name, 0)
 	return &PhysicsBody2D{
-		Node2D: node,
+		Node2D:      node,
+		mass:        1.0,           // Default mass
+		friction:    0.1,           // Default friction
+		restitution: 0.0,           // Default restitution (no bounce)
+		gravityScale: 1.0,          // Default gravity scale
+		linearVelX:  0.0,           // Initial velocity zero
+		linearVelY:  0.0,
+		angularVel:  0.0,           // Initial angular velocity zero
+		solid:       true,          // Default to solid (collidable)
+		trigger:     false,         // Not a trigger by default
+		collisionGroup: 0,          // Default collision group
+		onCollision:          nil,
+		onEnterOverlap:       nil,
+		onExitOverlap:        nil,
 	}
 }
 

@@ -190,3 +190,34 @@ func (a *Area2D) SetOnAreaExitedKS(fn func(area interface{})) {
 		fn(ar)
 	}
 }
+
+// RegisterArea2DAPI returns the KScript API for Area2D.
+func RegisterArea2DAPI() map[string]interface{} {
+	return map[string]interface{}{
+		"getOverlappingBodies": func(instance *Area2D) []interface{} {
+			return instance.GetOverlappingBodiesKS()
+		},
+		"getOverlappingAreas": func(instance *Area2D) []interface{} {
+			// TODO: Implement overlapping areas tracking
+			return []interface{}{}
+		},
+		"setMonitorEnabled": func(instance *Area2D, enabled bool) {
+			instance.SetMonitorEnabled(enabled)
+		},
+		"isMonitorEnabled": func(instance *Area2D) bool {
+			return instance.IsMonitorEnabled()
+		},
+		"setOnBodyEntered": func(instance *Area2D, fn func(body interface{})) {
+			instance.SetOnBodyEnteredKS(fn)
+		},
+		"setOnBodyExited": func(instance *Area2D, fn func(body interface{})) {
+			instance.SetOnBodyExitedKS(fn)
+		},
+		"setOnAreaEntered": func(instance *Area2D, fn func(area interface{})) {
+			instance.SetOnAreaEnteredKS(fn)
+		},
+		"setOnAreaExited": func(instance *Area2D, fn func(area interface{})) {
+			instance.SetOnAreaExitedKS(fn)
+		},
+	}
+}

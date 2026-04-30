@@ -111,3 +111,45 @@ func (r *RigidBody2D) SetPositionVec(pos math.Vector2) {
 	r.Pos.X = pos.X
 	r.Pos.Y = pos.Y
 }
+
+// RegisterRigidBody2DAPI returns the KScript API for RigidBody2D.
+func RegisterRigidBody2DAPI() map[string]interface{} {
+	return map[string]interface{}{
+		"applyForce": func(instance *RigidBody2D, fx, fy float64) {
+			instance.ApplyForceKS(fx, fy)
+		},
+		"applyImpulse": func(instance *RigidBody2D, ix, iy float64) {
+			instance.ApplyImpulseKS(ix, iy)
+		},
+		"setVelocity": func(instance *RigidBody2D, vx, vy float64) {
+			instance.SetVelocityKS(vx, vy)
+		},
+		"getVelocity": func(instance *RigidBody2D) (float64, float64) {
+			return instance.GetVelocityKS()
+		},
+		"setAngularVelocity": func(instance *RigidBody2D, omega float64) {
+			instance.SetAngularVelocity(float32(omega))
+		},
+		"getAngularVelocity": func(instance *RigidBody2D) float64 {
+			return float64(instance.GetAngularVelocity())
+		},
+		"setMass": func(instance *RigidBody2D, mass float64) {
+			instance.SetMass(float32(mass))
+		},
+		"getMass": func(instance *RigidBody2D) float64 {
+			return float64(instance.GetMass())
+		},
+		"setGravityScale": func(instance *RigidBody2D, scale float64) {
+			instance.SetGravityScale(float32(scale))
+		},
+		"getGravityScale": func(instance *RigidBody2D) float64 {
+			return float64(instance.GetGravityScale())
+		},
+		"freezeRotation": func(instance *RigidBody2D, freeze bool) {
+			instance.FreezeRotation = freeze
+		},
+		"isFrozenRotation": func(instance *RigidBody2D) bool {
+			return instance.FreezeRotation
+		},
+	}
+}
