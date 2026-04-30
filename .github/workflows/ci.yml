@@ -9,9 +9,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y libx11-dev libasound2-dev libgl1-mesa-dev pkg-config
 
       - name: Setup Go
         uses: actions/setup-go@v5
