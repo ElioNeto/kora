@@ -114,51 +114,6 @@ function jsonToScene(doc, nextId) {
     },
   };
 }
-  const entities = (doc.entities || []).map(e => ({
-    id:       nextId(),
-    name:     e.name     || 'Entity',
-    type:     e.type     || 'custom',
-    x:        Number(e.x)        || 0,
-    y:        Number(e.y)        || 0,
-    w:        Number(e.w)        || 48,
-    h:        Number(e.h)        || 48,
-    rotation: Number(e.rotation) || 0,
-    visible:  e.visible !== false,
-    locked:   !!e.locked,
-    color:    e.color    || '#00e5a0',
-    assetId:  e.assetId  || '',
-    script:   e.script   || '',
-    parentId: e.parentId !== undefined ? e.parentId : null,
-  }));
-  return {
-    kora:     '1.0',
-    name:     meta.name    || 'Untitled',
-    version:  meta.version || 1,
-    logicalW: meta.logicalW || 360,
-    logicalH: meta.logicalH || 640,
-    entities: entities.map(e => {
-      const obj = {
-        id:       e.id,
-        name:     e.name,
-        type:     e.type,
-        x:        e.x,
-        y:        e.y,
-        w:        e.w,
-        h:        e.h,
-        rotation: e.rotation,
-        visible:  e.visible,
-        locked:   e.locked,
-        color:    e.color,
-        assetId:  e.assetId || '',
-        script:   e.script || '',
-      };
-      if (e.parentId !== null && e.parentId !== undefined) {
-        obj.parentId = e.parentId;
-      }
-      return obj;
-    }),
-  };
-}
 
 // ------------------------------------------------------------------
 // KScript code generation
