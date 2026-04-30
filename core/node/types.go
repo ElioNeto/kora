@@ -20,3 +20,7 @@ func NewAudioPlayer(name string, id uint64) *AudioPlayer {
 		autoPlay: false,
 	}
 }
+
+// Camera2D is defined in physics.go as a full implementation.
+// This compile-time check ensures it satisfies the Node interface.
+var _ Node = (*Camera2D)(nil)

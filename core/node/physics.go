@@ -46,8 +46,8 @@ func NewPhysicsBody2D(name string) *PhysicsBody2D {
 	}
 }
 
-// AddChild overrides Node2D to attach physics bodies
-func (p *PhysicsBody2D) AddChild(child *Node2D) {
+// AddChild satisfies Node interface
+func (p *PhysicsBody2D) AddChild(child Node) {
 	p.Node2D.AddChild(child)
 }
 
@@ -590,3 +590,13 @@ func (a *AudioPlayer2D) IsPlaying() bool {
 func (a *AudioPlayer2D) IsPaused() bool {
 	return a.paused
 }
+
+// Compile-time interface checks
+var (
+	_ Node = (*PhysicsBody2D)(nil)
+	_ Node = (*RigidBody2D)(nil)
+	_ Node = (*StaticBody2D)(nil)
+	_ Node = (*Camera2D)(nil)
+	_ Node = (*Area2D)(nil)
+	_ Node = (*AudioPlayer2D)(nil)
+)

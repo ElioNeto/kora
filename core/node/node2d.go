@@ -3,6 +3,9 @@
 package node
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ElioNeto/kora/core/math"
@@ -172,10 +175,11 @@ func (n *Node2D) AddChild(child Node) {
 		return
 	}
 
-	// Type assert to *Node2D for internal storage
+	// Currently only *Node2D is supported due to internal storage.
+	// TODO: support any Node by extracting underlying *Node2D from embedded types.
 	node2d, ok := child.(*Node2D)
 	if !ok {
-		return
+		panic("Node2D.AddChild: only *Node2D is supported, got " + getTypeName(child))
 	}
 
 	// Check if already child
@@ -188,6 +192,11 @@ func (n *Node2D) AddChild(child Node) {
 	// Set parent
 	node2d.parent = n
 	n.children = append(n.children, node2d)
+}
+
+// getTypeName returns the type name of an interface for panic messages.
+func getTypeName(i interface{}) string {
+	return fmt.Sprintf("%T", i)
 }
 
 // RemoveChild removes a child node by name (satisfies Node interface)
@@ -264,20 +273,12 @@ func (n *Node2D) GetNode(path string) Node {
 
 // splitPath splits a path by "/" separator
 func splitPath(path string) []string {
-	result := []string{}
-	current := ""
-	for i := 0; i < len(path); i++ {
-		if path[i] == '/' {
-			if current != "" {
-				result = append(result, current)
-			}
-			current = ""
-		} else {
-			current += string(path[i])
+	parts := strings.Split(path, "/")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			result = append(result, p)
 		}
-	}
-	if current != "" {
-		result = append(result, current)
 	}
 	return result
 }
