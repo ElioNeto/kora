@@ -36,6 +36,9 @@ var mgr *Manager
 func Init(sampleRate int) error {
 	var err error
 	mgr, err = NewManager(sampleRate)
+	if err == nil {
+		initMixer(mgr.ctx)
+	}
 	return err
 }
 
@@ -52,6 +55,9 @@ func NewManager(sampleRate int) (*Manager, error) {
 	ctx := audio.NewContext(sampleRate)
 	return &Manager{ctx: ctx, sfxVol: 1.0, bgmVol: 1.0}, nil
 }
+
+// Context returns the underlying Ebitengine audio context.
+func (m *Manager) Context() *audio.Context { return m.ctx }
 
 // ----------------------------------------------------------------------------
 // Sound data
@@ -144,6 +150,9 @@ func PlayBGM(s *Sound, loop bool) error {
 }
 
 func (m *Manager) PlayBGM(s *Sound, loop bool) error {
+	if s == nil {
+		return nil
+	}
 	if m.bgm != nil {
 		_ = m.bgm.Close()
 		m.bgm = nil
@@ -195,6 +204,9 @@ func PlaySFX(s *Sound, volume float64) error {
 }
 
 func (m *Manager) PlaySFX(s *Sound, volume float64) error {
+	if s == nil {
+		return nil
+	}
 	p, err := m.ctx.NewPlayer(bytes.NewReader(s.data))
 	if err != nil {
 		return err
