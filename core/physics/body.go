@@ -66,6 +66,10 @@ type RigidBody struct {
 
 	// Callbacks — set by KScript runtime binding
 	OnCollision func(other *RigidBody, normal Vec2)
+
+	// NodeRef stores a reference back to the game node (set by node package).
+	// Used by Area2D overlap detection to map physics bodies → game nodes.
+	NodeRef interface{}
 }
 
 // AABB returns the axis-aligned bounding box corners for b.

@@ -14,6 +14,19 @@ const (
 // world position (px, py) is solid. Provided by core/render/tilemap.
 type TileQuery func(px, py float32) bool
 
+// NodeBody is an interface that physics-capable game nodes can implement
+// to register themselves with a PhysicsWorld. This allows decoupling between
+// the core/node and core/physics packages (no circular imports).
+type NodeBody interface {
+	GetPos() (float32, float32)
+	GetVelocity() (float32, float32)
+	GetMass() float32
+	GetShape() (ShapeType, float32, float32) // shape type, width, height (or radius for circles)
+	GetCollisionLayer() uint16
+	GetCollisionMask() uint16
+	IsSolid() bool
+}
+
 // PhysicsWorld manages all bodies and areas and drives the simulation at fixed 60 TPS.
 type PhysicsWorld struct {
 	Gravity     Vec2
@@ -70,6 +83,47 @@ func (w *PhysicsWorld) Register(b *RigidBody) {
 // RegisterArea adds an area to the simulation.
 func (w *PhysicsWorld) RegisterArea(a *Area2D) {
 	w.areas = append(w.areas, a)
+}
+
+// RegisterNodeBody registers a node-level body (via the NodeBody interface).
+// It creates an internal RigidBody and adds it to the simulation.
+// Returns the entity ID assigned to the new body.
+func (w *PhysicsWorld) RegisterNodeBody(nb NodeBody) int {
+	x, y := nb.GetPos()
+	shape, w_, h_ := nb.GetShape()
+
+	bodyType := BodyDynamic
+	if !nb.IsSolid() {
+		bodyType = BodyKinematic
+	}
+
+	entityID := len(w.bodies) + 1
+	body := &RigidBody{
+		EntityID: entityID,
+		Pos:      Vec2{x, y},
+		Shape:    shape,
+		Mass:     nb.GetMass(),
+		Type:     bodyType,
+		Layer:    nb.GetCollisionLayer(),
+		Mask:     nb.GetCollisionMask(),
+		Gravity:  1,
+	}
+
+	switch shape {
+	case ShapeCircle:
+		body.Radius = w_ / 2
+	default: // ShapeRect
+		body.HalfW = w_ / 2
+		body.HalfH = h_ / 2
+	}
+
+	w.bodies = append(w.bodies, body)
+	return entityID
+}
+
+// UnregisterNodeBody removes a node-level body from the simulation by entity ID.
+func (w *PhysicsWorld) UnregisterNodeBody(entityID int) {
+	w.Remove(entityID)
 }
 
 // Remove detaches a body from the simulation.

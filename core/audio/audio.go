@@ -16,8 +16,10 @@ package audio
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
@@ -48,12 +50,13 @@ type Manager struct {
 	bgm    *audio.Player
 	sfxVol float64
 	bgmVol float64
+	sounds map[string]*Sound // cached sounds loaded by name/path
 }
 
 // NewManager creates a Manager with the given sample rate.
 func NewManager(sampleRate int) (*Manager, error) {
 	ctx := audio.NewContext(sampleRate)
-	return &Manager{ctx: ctx, sfxVol: 1.0, bgmVol: 1.0}, nil
+	return &Manager{ctx: ctx, sfxVol: 1.0, bgmVol: 1.0, sounds: make(map[string]*Sound)}, nil
 }
 
 // Context returns the underlying Ebitengine audio context.
@@ -223,4 +226,98 @@ func SetSFXVolume(v float64) {
 	if mgr != nil {
 		mgr.sfxVol = v
 	}
+}
+
+// ----------------------------------------------------------------------------
+// Node sound integration (for AudioPlayer2D and similar)
+// ----------------------------------------------------------------------------
+
+// GetSound returns a previously cached sound by name, or nil.
+func (m *Manager) GetSound(name string) *Sound {
+	if m.sounds == nil {
+		return nil
+	}
+	return m.sounds[name]
+}
+
+// SetSound stores a sound in the manager's cache by name.
+func (m *Manager) SetSound(name string, s *Sound) {
+	if m.sounds == nil {
+		m.sounds = make(map[string]*Sound)
+	}
+	m.sounds[name] = s
+}
+
+// LoadSound loads a sound file from path, caches it, and returns it.
+// The file extension determines the decoder (.ogg, .wav, .mp3).
+// If the sound is already cached it is returned immediately.
+func (m *Manager) LoadSound(path string) (*Sound, error) {
+	if s, ok := m.sounds[path]; ok {
+		return s, nil
+	}
+	lower := strings.ToLower(path)
+	var s *Sound
+	var err error
+	switch {
+	case strings.HasSuffix(lower, ".ogg"):
+		s, err = LoadOGG(path)
+	case strings.HasSuffix(lower, ".wav"):
+		s, err = LoadWAV(path)
+	case strings.HasSuffix(lower, ".mp3"):
+		s, err = LoadMP3(path)
+	default:
+		return nil, fmt.Errorf("unsupported audio format: %s", path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	m.sounds[path] = s
+	return s, nil
+}
+
+// PlayNodeSound plays a sound by name with the given settings.
+// If the sound is not yet cached, it attempts to load it from the path.
+// Returns a channel ID (int) that can be used for control (Stop, Pause, Resume).
+// Returns 0 if the sound cannot be found or the mixer is not initialised.
+func (m *Manager) PlayNodeSound(name string, volume float64, loop bool, pan float64) int {
+	mixer := MixerI()
+	if mixer == nil {
+		return 0
+	}
+	s := m.GetSound(name)
+	if s == nil {
+		// Attempt on-demand load (name may be a file path)
+		var err error
+		s, err = m.LoadSound(name)
+		if err != nil {
+			return 0
+		}
+	}
+	id := mixer.Play(s, PlayOpts{
+		Group:  GroupSFX,
+		Volume: volume,
+		Pan:    pan,
+		Loop:   loop,
+	})
+	return int(id)
+}
+
+// global helpers (nil-safe)
+
+// PreloadSound loads and caches a sound file via the global manager.
+func PreloadSound(path string) error {
+	if mgr == nil {
+		return nil
+	}
+	_, err := mgr.LoadSound(path)
+	return err
+}
+
+// PlayNodeSound plays a cached sound by name via the global manager.
+// Returns 0 if not initialised or sound not found.
+func PlayNodeSound(name string, volume float64, loop bool, pan float64) int {
+	if mgr == nil {
+		return 0
+	}
+	return mgr.PlayNodeSound(name, volume, loop, pan)
 }

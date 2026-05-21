@@ -130,6 +130,23 @@ func (m *Mixer) GroupVolume(group AudioGroup) float64 {
 // Listener position (for spatial audio)
 // ---------------------------------------------------------------------------
 
+// SetChannelPan updates the stereo pan of an active channel (-1.0 left to 1.0 right).
+func (m *Mixer) SetChannelPan(id ChannelID, pan float64) {
+	if pan < -1 {
+		pan = -1
+	}
+	if pan > 1 {
+		pan = 1
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ch, ok := m.channels[id]
+	if !ok {
+		return
+	}
+	ch.info.Pan = pan
+}
+
 // SetListenerPosition sets the world-space position of the audio listener
 // (usually the camera or player). Used for spatial/positional audio panning.
 func (m *Mixer) SetListenerPosition(x, y float64) {
@@ -423,3 +440,31 @@ var (
 	// GlobalMixer is a shortcut for MixerI().
 	GlobalMixer = MixerI
 )
+
+// ComputeSpatialPan calculates stereo pan for a sound at worldX relative to the
+// global listener. Returns -1.0 (full left) to 1.0 (full right).
+// Returns 0 (centre) if the mixer is not initialised.
+func ComputeSpatialPan(soundX float64) float64 {
+	m := MixerI()
+	if m == nil {
+		return 0
+	}
+	return m.computeSpatialPan(soundX)
+}
+
+// ListenerPosition returns the current listener position from the global mixer.
+func ListenerPosition() (float64, float64) {
+	m := MixerI()
+	if m == nil {
+		return 0, 0
+	}
+	return m.ListenerPosition()
+}
+
+// SetListenerPosition sets the listener position on the global mixer.
+func SetListenerPosition(x, y float64) {
+	m := MixerI()
+	if m != nil {
+		m.SetListenerPosition(x, y)
+	}
+}

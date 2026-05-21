@@ -2,29 +2,52 @@ package node
 
 import (
 	stdMath "math"
+	"sync/atomic"
 
+	"github.com/ElioNeto/kora/core/audio"
 	"github.com/ElioNeto/kora/core/math"
+	"github.com/ElioNeto/kora/core/physics"
 	"github.com/hajimehoshi/ebiten/v2"
 )
+
+// nextNodeBodyID provides unique entity IDs for PhysicsBody2D bodies.
+var nextNodeBodyID int32 = 1000
+
+func allocNodeBodyID() int {
+	return int(atomic.AddInt32(&nextNodeBodyID, 1))
+}
 
 // PhysicsBody2D is a node that wraps core/physics types.
 // It implements scene.PhysicsNode for SceneTree integration.
 type PhysicsBody2D struct {
 	*Node2D
 	physicsBody interface{} // Holds the core/physics body type
-	
+
 	// Common physics properties
-	mass        float64
-	friction    float64
-	restitution float64
+	mass         float64
+	friction     float64
+	restitution  float64
 	gravityScale float64
-	linearVelX  float64
-	linearVelY  float64
-	angularVel  float64
-	solid       bool
-	trigger     bool
+	linearVelX   float64
+	linearVelY   float64
+	angularVel   float64
+	solid        bool
+	trigger      bool
 	collisionGroup int
-	
+
+	// Physics world integration (optional — nil means no physics simulation)
+	physicsWorld *physics.PhysicsWorld
+	physBody     *physics.RigidBody // The actual body registered in PhysicsWorld
+	bodyID       int                // Entity ID in the physics world
+
+	// Shape dimensions (for creating the physics body)
+	width  float64
+	height float64
+
+	// Collision filtering
+	collisionLayer uint16
+	collisionMask  uint16
+
 	// Callbacks
 	onCollision          func(other *Node2D, eventType CollisionType)
 	onEnterOverlap       func(other *Node2D)
@@ -35,17 +58,22 @@ type PhysicsBody2D struct {
 func NewPhysicsBody2D(name string) *PhysicsBody2D {
 	node := NewNode2D(name, 0)
 	return &PhysicsBody2D{
-		Node2D:      node,
-		mass:        1.0,           // Default mass
-		friction:    0.1,           // Default friction
-		restitution: 0.0,           // Default restitution (no bounce)
-		gravityScale: 1.0,          // Default gravity scale
-		linearVelX:  0.0,           // Initial velocity zero
-		linearVelY:  0.0,
-		angularVel:  0.0,           // Initial angular velocity zero
-		solid:       true,          // Default to solid (collidable)
-		trigger:     false,         // Not a trigger by default
-		collisionGroup: 0,          // Default collision group
+		Node2D:         node,
+		mass:           1.0,           // Default mass
+		friction:       0.1,           // Default friction
+		restitution:    0.0,           // Default restitution (no bounce)
+		gravityScale:   1.0,           // Default gravity scale
+		linearVelX:     0.0,           // Initial velocity zero
+		linearVelY:     0.0,
+		angularVel:     0.0,           // Initial angular velocity zero
+		solid:          true,          // Default to solid (collidable)
+		trigger:        false,         // Not a trigger by default
+		collisionGroup: 0,             // Default collision group
+		width:          32,            // Default shape size
+		height:         32,
+		collisionLayer: uint16(physics.DefaultLayer),
+		collisionMask:  uint16(physics.DefaultMask),
+		bodyID:         -1,            // No physics body yet
 		onCollision:          nil,
 		onEnterOverlap:       nil,
 		onExitOverlap:        nil,
@@ -60,6 +88,9 @@ func (p *PhysicsBody2D) AddChild(child Node) {
 // SetMass sets the body mass (0 = infinite/static)
 func (p *PhysicsBody2D) SetMass(mass float64) {
 	p.mass = mass
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // GetMass returns current mass
@@ -76,6 +107,9 @@ func (p *PhysicsBody2D) SetFriction(friction float64) {
 		friction = 1
 	}
 	p.friction = friction
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // GetFriction returns current friction
@@ -92,6 +126,9 @@ func (p *PhysicsBody2D) SetRestitution(restitution float64) {
 		restitution = 1
 	}
 	p.restitution = restitution
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // GetRestitution returns current restitution
@@ -102,6 +139,9 @@ func (p *PhysicsBody2D) GetRestitution() float64 {
 // SetGravityScale sets gravity multiplier
 func (p *PhysicsBody2D) SetGravityScale(scale float64) {
 	p.gravityScale = scale
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // GetGravityScale returns gravity scale
@@ -113,6 +153,9 @@ func (p *PhysicsBody2D) GetGravityScale() float64 {
 func (p *PhysicsBody2D) SetLinearVelocity(vx, vy float64) {
 	p.linearVelX = vx
 	p.linearVelY = vy
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // GetLinearVelocity returns linear velocity
@@ -124,11 +167,17 @@ func (p *PhysicsBody2D) GetLinearVelocity() (float64, float64) {
 func (p *PhysicsBody2D) AddLinearVelocity(vx, vy float64) {
 	p.linearVelX += vx
 	p.linearVelY += vy
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // SetAngularVelocity sets rotational velocity (radians per second)
 func (p *PhysicsBody2D) SetAngularVelocity(omega float64) {
 	p.angularVel = omega
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // GetAngularVelocity returns angular velocity
@@ -140,6 +189,9 @@ func (p *PhysicsBody2D) GetAngularVelocity() float64 {
 func (p *PhysicsBody2D) SetSolid(solid bool) {
 	p.solid = solid
 	p.trigger = !solid
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // IsSolid returns if body is solid
@@ -151,6 +203,9 @@ func (p *PhysicsBody2D) IsSolid() bool {
 func (p *PhysicsBody2D) SetTrigger(trigger bool) {
 	p.trigger = trigger
 	p.solid = !trigger
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // IsTrigger returns if body is a trigger
@@ -162,17 +217,26 @@ func (p *PhysicsBody2D) IsTrigger() bool {
 func (p *PhysicsBody2D) ApplyForce(fx, fy float64) {
 	p.linearVelX += fx / p.mass
 	p.linearVelY += fy / p.mass
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // ApplyImpulse applies an instantaneous impulse
 func (p *PhysicsBody2D) ApplyImpulse(impX, impY float64) {
 	p.linearVelX += impX / p.mass
 	p.linearVelY += impY / p.mass
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // ApplyTorque applies rotational torque
 func (p *PhysicsBody2D) ApplyTorque(torque float64) {
 	p.angularVel += torque / p.mass // Simplified
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
 }
 
 // SetCollisionGroup sets the collision group
@@ -221,22 +285,14 @@ func (p *PhysicsBody2D) TriggerOverlapExit(other *Node2D) {
 	}
 }
 
-// Update processes physics simulation for this body
+// Update processes physics simulation for this body.
+// If the body is attached to a PhysicsWorld, it syncs position and velocity
+// from the physics engine (no self-integration).
 func (p *PhysicsBody2D) Update(dt float64) {
-	// Apply gravity
-	if p.gravityScale > 0 {
-		p.linearVelY -= 980.0 * p.gravityScale * dt
+	// Sync from physics world (if attached)
+	if p.physicsWorld != nil && p.physBody != nil {
+		p.SyncFromWorld()
 	}
-
-	// Apply friction
-	p.linearVelX *= 1.0 - p.friction*dt*10
-	p.linearVelY *= 1.0 - p.friction*dt*10
-
-	// Update position from velocity
-	pos := p.GetPosition()
-	pos.X += float32(p.linearVelX * dt)
-	pos.Y += float32(p.linearVelY * dt)
-	p.SetPosition(pos.X, pos.Y)
 
 	// Propagate to children
 	for _, child := range p.children {
@@ -244,6 +300,150 @@ func (p *PhysicsBody2D) Update(dt float64) {
 			child.Update(dt)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// PhysicsWorld integration
+// ---------------------------------------------------------------------------
+
+// SetPhysicsWorld attaches (or detaches) this body to/from a PhysicsWorld.
+// If world is non-nil, a RigidBody is created in the physics world and the
+// node's current properties are synced to it.
+// If world is nil, the body is removed from its previous world.
+func (p *PhysicsBody2D) SetPhysicsWorld(world *physics.PhysicsWorld) {
+	// Unregister from old world
+	if p.physicsWorld != nil && p.physBody != nil {
+		p.physicsWorld.Remove(p.bodyID)
+	}
+
+	p.physicsWorld = world
+
+	if world != nil {
+		// Generate a unique entity ID if not already set
+		if p.bodyID < 0 {
+			p.bodyID = allocNodeBodyID()
+		}
+		p.SyncToWorld()
+	} else {
+		p.physBody = nil
+		p.bodyID = -1
+	}
+}
+
+// SyncToWorld copies the node's current properties to the physics body.
+// If no physics body exists yet, one is created and registered.
+func (p *PhysicsBody2D) SyncToWorld() {
+	if p.physicsWorld == nil {
+		return
+	}
+
+	pos := p.GetPosition()
+
+	// Determine body type
+	bodyType := physics.BodyDynamic
+	if !p.solid || p.trigger || p.mass == 0 {
+		bodyType = physics.BodyStatic
+	}
+
+	// Create physics body if it doesn't exist
+	if p.physBody == nil {
+		p.physBody = physics.NewBody(p.bodyID, pos.X, pos.Y, float32(p.width), float32(p.height), bodyType)
+		p.physBody.NodeRef = p.Node2D
+
+		// Bridge physics collision callback to node-level callback.
+		// When the physics engine detects a collision, it fires the
+		// physics.RigidBody.OnCollision callback, which we translate
+		// to the node's onCollision callback with the correct Node2D reference.
+		p.physBody.OnCollision = func(other *physics.RigidBody, normal physics.Vec2) {
+			if other != nil && other.NodeRef != nil {
+				if otherNode, ok := other.NodeRef.(*Node2D); ok {
+					if p.onCollision != nil {
+						p.onCollision(otherNode, CollisionTypeCollide)
+					}
+				}
+			}
+		}
+		p.physicsWorld.Register(p.physBody)
+	}
+
+	// Sync all properties
+	p.physBody.Pos = physics.Vec2{X: pos.X, Y: pos.Y}
+	p.physBody.Vel = physics.Vec2{X: float32(p.linearVelX), Y: float32(p.linearVelY)}
+	p.physBody.Mass = float32(p.mass)
+	p.physBody.Gravity = float32(p.gravityScale)
+	p.physBody.Type = bodyType
+	p.physBody.Layer = p.collisionLayer
+	p.physBody.Mask = p.collisionMask
+	p.physBody.HalfW = float32(p.width) / 2
+	p.physBody.HalfH = float32(p.height) / 2
+
+	// Ensure NodeRef is set (in case body was created elsewhere)
+	if p.physBody.NodeRef == nil {
+		p.physBody.NodeRef = p.Node2D
+	}
+}
+
+// SyncFromWorld copies the physics body's state back to the node.
+// Called every frame in Update() when attached to a PhysicsWorld.
+func (p *PhysicsBody2D) SyncFromWorld() {
+	if p.physBody == nil {
+		return
+	}
+
+	// Copy position from physics body to node
+	p.SetPosition(p.physBody.Pos.X, p.physBody.Pos.Y)
+
+	// Copy velocity
+	p.linearVelX = float64(p.physBody.Vel.X)
+	p.linearVelY = float64(p.physBody.Vel.Y)
+}
+
+// ---------------------------------------------------------------------------
+// Shape dimensions
+// ---------------------------------------------------------------------------
+
+// SetSize sets the collision shape dimensions for this body.
+func (p *PhysicsBody2D) SetSize(w, h float64) {
+	p.width = w
+	p.height = h
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
+}
+
+// GetSize returns the collision shape dimensions.
+func (p *PhysicsBody2D) GetSize() (float64, float64) {
+	return p.width, p.height
+}
+
+// ---------------------------------------------------------------------------
+// Collision filtering
+// ---------------------------------------------------------------------------
+
+// SetCollisionLayer sets the collision layer bitmask.
+func (p *PhysicsBody2D) SetCollisionLayer(layer uint16) {
+	p.collisionLayer = layer
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
+}
+
+// GetCollisionLayer returns the collision layer bitmask.
+func (p *PhysicsBody2D) GetCollisionLayer() uint16 {
+	return p.collisionLayer
+}
+
+// SetCollisionMask sets the collision mask bitmask (which layers to collide with).
+func (p *PhysicsBody2D) SetCollisionMask(mask uint16) {
+	p.collisionMask = mask
+	if p.physicsWorld != nil {
+		p.SyncToWorld()
+	}
+}
+
+// GetCollisionMask returns the collision mask bitmask.
+func (p *PhysicsBody2D) GetCollisionMask() uint16 {
+	return p.collisionMask
 }
 
 // RigidBody2D is a dynamic physics body
@@ -281,16 +481,27 @@ type Area2D struct {
 	overlaps []*Node2D
 
 	// Callbacks
-	onEnter  func(other *Node2D)
-	onExit   func(other *Node2D)
+	onEnter   func(other *Node2D)
+	onExit    func(other *Node2D)
 	onOverlap func(other *Node2D)
+
+	// Physics world integration (optional — delegates overlap detection to PhysicsWorld)
+	physicsWorld   *physics.PhysicsWorld
+	width          float64
+	height         float64
+	collisionLayer uint16
+	collisionMask  uint16
 }
 
 // NewArea2D creates a new Area2D
 func NewArea2D(name string) *Area2D {
 	return &Area2D{
-		Node2D:   NewNode2D(name, 0),
-		overlaps: make([]*Node2D, 0),
+		Node2D:         NewNode2D(name, 0),
+		overlaps:       make([]*Node2D, 0),
+		width:          32,
+		height:         32,
+		collisionLayer: uint16(physics.DefaultLayer),
+		collisionMask:  uint16(physics.DefaultMask),
 	}
 }
 
@@ -359,6 +570,116 @@ func (a *Area2D) ClearOverlaps() {
 		}
 	}
 	a.overlaps = make([]*Node2D, 0)
+}
+
+// ---------------------------------------------------------------------------
+// Area2D PhysicsWorld integration
+// ---------------------------------------------------------------------------
+
+// SetPhysicsWorld attaches this area to a PhysicsWorld for overlap detection.
+func (a *Area2D) SetPhysicsWorld(world *physics.PhysicsWorld) {
+	a.physicsWorld = world
+}
+
+// SetSize sets the area's detection zone dimensions.
+func (a *Area2D) SetSize(w, h float64) {
+	a.width = w
+	a.height = h
+}
+
+// GetSize returns the area's detection zone dimensions.
+func (a *Area2D) GetSize() (float64, float64) {
+	return a.width, a.height
+}
+
+// SetCollisionLayer sets the collision layer for overlap detection.
+func (a *Area2D) SetCollisionLayer(layer uint16) {
+	a.collisionLayer = layer
+}
+
+// GetCollisionLayer returns the collision layer.
+func (a *Area2D) GetCollisionLayer() uint16 {
+	return a.collisionLayer
+}
+
+// SetCollisionMask sets which layers this area detects overlaps with.
+func (a *Area2D) SetCollisionMask(mask uint16) {
+	a.collisionMask = mask
+}
+
+// GetCollisionMask returns the collision mask.
+func (a *Area2D) GetCollisionMask() uint16 {
+	return a.collisionMask
+}
+
+// SyncWithPhysics uses the attached PhysicsWorld to detect overlapping bodies.
+// It replaces the manual overlap detection with the physics engine's AABB checks.
+// Should be called once per frame (e.g., in Update or after PhysicsWorld.Step).
+func (a *Area2D) SyncWithPhysics() {
+	if a.physicsWorld == nil {
+		return
+	}
+
+	pos := a.GetPosition()
+	halfW := float32(a.width * 0.5)
+	halfH := float32(a.height * 0.5)
+	minX := float32(pos.X) - halfW
+	minY := float32(pos.Y) - halfH
+	maxX := float32(pos.X) + halfW
+	maxY := float32(pos.Y) + halfH
+
+	// Query physics world for overlapping bodies (by area's collision mask)
+	bodies := a.physicsWorld.OverlapRect(minX, minY, maxX, maxY, a.collisionMask)
+
+	// Filter by reverse direction: the body must also accept collisions with
+	// the area's layer (matching physics.Area2D bidirectional filter).
+	var filtered []*physics.RigidBody
+	for _, b := range bodies {
+		if (a.collisionLayer & b.Mask) != 0 {
+			filtered = append(filtered, b)
+		}
+	}
+
+	// Build set of currently overlapping Node2D references
+	currentNodes := make(map[*Node2D]bool)
+	for _, b := range filtered {
+		if ref, ok := b.NodeRef.(*Node2D); ok {
+			currentNodes[ref] = true
+		}
+	}
+
+	// Find new overlaps (in physics but not in our list)
+	for node := range currentNodes {
+		found := false
+		for _, existing := range a.overlaps {
+			if existing == node {
+				found = true
+				break
+			}
+		}
+		if !found {
+			a.overlaps = append(a.overlaps, node)
+			if a.onEnter != nil {
+				a.onEnter(node)
+			}
+			if a.onOverlap != nil {
+				a.onOverlap(node)
+			}
+		}
+	}
+
+	// Find removed overlaps (in our list but not in physics)
+	var remaining []*Node2D
+	for _, existing := range a.overlaps {
+		if currentNodes[existing] {
+			remaining = append(remaining, existing)
+		} else {
+			if a.onExit != nil {
+				a.onExit(existing)
+			}
+		}
+	}
+	a.overlaps = remaining
 }
 
 // Camera2D controls the camera view
@@ -620,6 +941,9 @@ type AudioPlayer2D struct {
 	isPlaying    bool
 	looping      bool
 	paused       bool
+
+	// Connection to the real audio system
+	channelID int // mixer channel ID (0 = not playing)
 }
 
 // NewAudioPlayer2D creates a new AudioPlayer2D
@@ -628,12 +952,20 @@ func NewAudioPlayer2D(name string) *AudioPlayer2D {
 		Node2D:    NewNode2D(name, 0),
 		volume:    1.0,
 		isPlaying: false,
+		channelID: 0,
 	}
 }
 
-// SetSound sets the audio sound name
+// SetSound sets the audio sound name and pre-loads the sound via the audio manager.
+// If the audio manager is not initialised, the sound name is stored but not loaded.
 func (a *AudioPlayer2D) SetSound(soundName string) {
+	// Stop any currently playing sound
+	if a.channelID != 0 {
+		a.Stop()
+	}
 	a.soundName = soundName
+	// Pre-load the sound via the audio manager (nil-safe)
+	_ = audio.PreloadSound(soundName)
 }
 
 // GetSound returns current sound name
@@ -667,30 +999,80 @@ func (a *AudioPlayer2D) IsLooping() bool {
 	return a.looping
 }
 
-// Play starts audio playback
+// Play starts audio playback via the real audio system.
+// If the audio manager is not initialised, only the flags are set (no-op).
 func (a *AudioPlayer2D) Play() {
-	if !a.isPlaying {
+	if a.isPlaying && !a.paused {
+		return // already playing
+	}
+	if a.soundName == "" {
+		return
+	}
+
+	// If we have a paused channel, resume it instead of restarting
+	if a.paused && a.channelID != 0 {
+		if mixer := audio.GlobalMixer(); mixer != nil {
+			mixer.Resume(audio.ChannelID(a.channelID))
+		}
+		a.paused = false
+		a.isPlaying = true
+		return
+	}
+
+	// Compute spatial pan from node position relative to listener
+	pos := a.GetWorldPosition()
+	pan := audio.ComputeSpatialPan(float64(pos.X))
+
+	// Play via the global audio manager (nil-safe -> returns 0)
+	id := audio.PlayNodeSound(a.soundName, float64(a.volume), a.looping, pan)
+	if id != 0 {
+		// Stop any previous channel before assigning the new one
+		if a.channelID != 0 {
+			if mixer := audio.GlobalMixer(); mixer != nil {
+				mixer.Stop(audio.ChannelID(a.channelID))
+			}
+		}
+		a.channelID = id
 		a.isPlaying = true
 		a.paused = false
-		// Trigger actual audio playback
+	} else {
+		// Audio not available — just set flags (backward compatible)
+		a.isPlaying = true
+		a.paused = false
 	}
 }
 
-// Pause pauses audio playback
+// Pause pauses the audio playback on the audio channel.
 func (a *AudioPlayer2D) Pause() {
+	if a.channelID != 0 {
+		if mixer := audio.GlobalMixer(); mixer != nil {
+			mixer.Pause(audio.ChannelID(a.channelID))
+		}
+	}
 	a.paused = true
 }
 
-// Resume resumes paused audio
+// Resume resumes the paused audio on the audio channel.
 func (a *AudioPlayer2D) Resume() {
+	if a.channelID != 0 {
+		if mixer := audio.GlobalMixer(); mixer != nil {
+			mixer.Resume(audio.ChannelID(a.channelID))
+		}
+	}
 	a.paused = false
+	a.isPlaying = true
 }
 
-// Stop stops audio playback
+// Stop stops audio playback on the audio channel.
 func (a *AudioPlayer2D) Stop() {
+	if a.channelID != 0 {
+		if mixer := audio.GlobalMixer(); mixer != nil {
+			mixer.Stop(audio.ChannelID(a.channelID))
+		}
+		a.channelID = 0
+	}
 	a.isPlaying = false
 	a.paused = false
-	// Stop actual audio
 }
 
 // IsPlaying returns playback state
@@ -701,6 +1083,24 @@ func (a *AudioPlayer2D) IsPlaying() bool {
 // IsPaused returns pause state
 func (a *AudioPlayer2D) IsPaused() bool {
 	return a.paused
+}
+
+// Update recomputes spatial audio pan based on node position relative to the listener.
+// Should be called every frame when the node or listener moves.
+func (a *AudioPlayer2D) Update(dt float64) {
+	// Call base Node2D.Update (which propagates to children and runs scripts)
+	if a.Node2D != nil {
+		a.Node2D.Update(dt)
+	}
+
+	// Update spatial pan for the active channel
+	if a.channelID != 0 {
+		if mixer := audio.GlobalMixer(); mixer != nil {
+			pos := a.GetWorldPosition()
+			pan := audio.ComputeSpatialPan(float64(pos.X))
+			mixer.SetChannelPan(audio.ChannelID(a.channelID), pan)
+		}
+	}
 }
 
 // Compile-time interface checks
