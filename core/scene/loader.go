@@ -81,3 +81,14 @@ func LoadScene(path string) (*node.Node2D, error) {
 	}
 	return root, nil
 }
+
+// LoadSceneEntity loads a scene file and returns a NodeEntity wrapping the
+// Node2D tree. This can be Spawn()'d directly into a Scene, bridging the
+// Node2D tree into the Entity-based update/draw loop.
+func LoadSceneEntity(path string) (*NodeEntity, error) {
+	root, err := LoadScene(path)
+	if err != nil {
+		return nil, err
+	}
+	return NewNodeEntity(root), nil
+}

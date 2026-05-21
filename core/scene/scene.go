@@ -11,12 +11,15 @@ import (
 
 // Scene is the root container for all live entities.
 // It owns a Scheduler and drives the update loop.
+// The Scene also holds a root Node2D tree (nodeRoot) that bridges the
+// Entity and Node2D systems — see NodeEntity.
 type Scene struct {
 	entities  []Entity
 	pending   []Entity          // spawned mid-frame, added after update
 	scheduler *async.Scheduler
 	groups    map[string][]Entity
 	paused    bool
+	nodeRoot  Entity           // NodeEntity wrapping the Node2D tree
 }
 
 // New creates an empty Scene.
@@ -25,6 +28,27 @@ func New() *Scene {
 		scheduler: async.NewScheduler(),
 		groups:    make(map[string][]Entity),
 	}
+}
+
+// SetNodeRoot sets the root NodeEntity for the scene.
+// This bridges the Node2D tree into the Entity system — the NodeEntity
+// is spawned into the scene, making the entire Node2D tree participate
+// in Update/Draw.
+func (s *Scene) SetNodeRoot(root *NodeEntity) {
+	if root != nil {
+		s.nodeRoot = root
+		s.Spawn(root)
+	}
+}
+
+// NodeRoot returns the current NodeEntity root, or nil.
+func (s *Scene) NodeRoot() *NodeEntity {
+	if s.nodeRoot != nil {
+		if ne, ok := s.nodeRoot.(*NodeEntity); ok {
+			return ne
+		}
+	}
+	return nil
 }
 
 // Scheduler returns the scene-wide async scheduler.
