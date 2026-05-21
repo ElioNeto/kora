@@ -42,9 +42,13 @@ desktop:
 compiler:
 	cd compiler && go build -o ../bin/kora-compiler .
 
-## run: Run sample game
+## run: Run the hello example (interactive player demo)
 run:
-	go run main.go examples/
+	go run ./examples/hello
+
+## run-dev: Run the engine entry point with debug overlay
+run-dev:
+	go run main.go
 
 ## test: Run all tests
 test:
