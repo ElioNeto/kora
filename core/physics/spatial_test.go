@@ -1,6 +1,7 @@
 package physics
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -299,5 +300,66 @@ func BenchmarkBruteForce1000(b *testing.B) {
 				_ = bodies[i].EntityID + bodies[j].EntityID
 			}
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Sub-benchmarks grouping by body count (100 and 1000)
+// ---------------------------------------------------------------------------
+
+// makeBodies creates n bodies spread across a 1000×1000 area.
+func makeBodies(n int) []*RigidBody {
+	bodies := make([]*RigidBody, n)
+	for i := range bodies {
+		x := float32((i * 10) % 1000)
+		y := float32(i/100) * 10
+		bodies[i] = spatialBody(i, x, y, 16, 16)
+	}
+	return bodies
+}
+
+func BenchmarkSpatialHashBruteForce(b *testing.B) {
+	sizes := []int{100, 1000}
+	for _, n := range sizes {
+		bodies := makeBodies(n)
+		name := "BruteForce"
+		if n == 100 {
+			name = "BruteForce/100"
+		} else {
+			name = "BruteForce/1000"
+		}
+		b.Run(name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for i := 0; i < len(bodies); i++ {
+					for j := i + 1; j < len(bodies); j++ {
+						_ = bodies[i].EntityID + bodies[j].EntityID
+					}
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkPhysicsWorldStep measures the World.Step() performance.
+// Expected order of magnitude:
+//   100 bodies: ~1-5 µs/op
+//   1000 bodies: ~50-500 µs/op (broad-phase overhead grows)
+func BenchmarkPhysicsWorldStep(b *testing.B) {
+	sizes := []int{100, 1000}
+	for _, n := range sizes {
+		name := fmt.Sprintf("Step/%d", n)
+		b.Run(name, func(b *testing.B) {
+			w := NewWorld(nil)
+			for i := 0; i < n; i++ {
+				body := spatialBody(i, float32(i*10), 0, 16, 16)
+				w.Register(body)
+			}
+			dt := float32(1.0 / 60.0)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				w.Step(dt)
+			}
+		})
 	}
 }
