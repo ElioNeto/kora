@@ -1,14 +1,18 @@
-// Kora Editor — Visual scene editor built with Go + Ebitengine
+// Kora Editor v2 — Editor visual nativo em Go, inspirado no GameMaker/Godot
 //
-// Interface inspirada no GameMaker Studio e Godot:
-//   - Viewport com grid e entidades
-//   - Painel de hierarquia
-//   - Painel de inspetor
-//   - Toolbar com operações de arquivo
-//
-// Uso:
-//   go run ./cmd/kora-editor
-//   make editor
+// Layout:
+//   ┌──────────────────────────────────────────────────────────┐
+//   │  Toolbar: [New] [Save] [Open]  Tabs: Scene | Assets     │
+//   ├──────────┬───────────────────────────────┬───────────────┤
+//   │          │                               │  Inspector    │
+//   │Hierarchy │        Viewport               │  Nome: Player│
+//   │  Player  │    ┌──────┐   ┌──────┐       │  X: 320      │
+//   │  Ground  │    │Player│   │Camera│       │  Y: 180      │
+//   │  Camera  │    └──────┘   └──────┘       │  W: 32       │
+//   │          │                               │  H: 32       │
+//   ├──────────┴───────────────────────────────┴───────────────┤
+//   │  Console: [Info] Entity created                          │
+//   └──────────────────────────────────────────────────────────┘
 
 package main
 
@@ -20,28 +24,30 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // ---------------------------------------------------------------------------
-// Core data structures (compatible with .kora.json format)
+// Scene data models (.kora.json compatible)
 // ---------------------------------------------------------------------------
 
-type EditorEntity struct {
-	ID       int              `json:"id"`
-	Name     string           `json:"name"`
-	Type     string           `json:"type"`
-	X, Y     float64          `json:"x,omitempty"`
-	W, H     float64          `json:"w,omitempty"`
-	Rotation float64          `json:"rotation,omitempty"`
-	Color    string           `json:"color,omitempty"`
-	Visible  bool             `json:"visible"`
-	ParentID int              `json:"parentId,omitempty"`
-	Children []*EditorEntity  `json:"children,omitempty"`
-	AssetID  string           `json:"assetId,omitempty"`
-	ZIndex   int              `json:"zIndex,omitempty"`
+type SceneEntity struct {
+	ID       int            `json:"id"`
+	Name     string         `json:"name"`
+	Type     string         `json:"type"`
+	X, Y     float64        `json:"x"`
+	W, H     float64        `json:"w"`
+	Rotation float64        `json:"rotation,omitempty"`
+	Color    string         `json:"color,omitempty"`
+	Visible  bool           `json:"visible"`
+	ParentID int            `json:"parentId,omitempty"`
+	Children []*SceneEntity `json:"children,omitempty"`
+	AssetID  string         `json:"assetId,omitempty"`
+	ZIndex   int            `json:"zIndex,omitempty"`
+	Script   string         `json:"script,omitempty"`
 }
 
 type SceneMeta struct {
@@ -51,28 +57,40 @@ type SceneMeta struct {
 	LogicalH int    `json:"logicalH"`
 }
 
-type SceneDoc struct {
-	Meta     SceneMeta       `json:"meta"`
-	Entities []*EditorEntity `json:"entities"`
+type SceneFile struct {
+	Meta     SceneMeta      `json:"meta"`
+	Entities []*SceneEntity `json:"entities"`
 }
 
 // ---------------------------------------------------------------------------
-// Editor state
+// Tab types for the editor
 // ---------------------------------------------------------------------------
 
-type EditorTool int
+type EditorTab int
 const (
-	ToolSelect EditorTool = iota
-	ToolMove
-	ToolAdd
+	TabScene EditorTab = iota
+	TabAssets
+	TabCode
+	TabPreview
 )
 
-type EditorState struct {
-	// Scene data
-	scene    SceneDoc
-	nextID   int
+// ---------------------------------------------------------------------------
+// Editor state — mirrors the web editor's state model
+// ---------------------------------------------------------------------------
+
+type Tool int
+const (
+	ToolSelect Tool = iota
+	ToolMove
+	ToolScale
+)
+
+type Editor struct {
+	// Scene
+	scene   SceneFile
+	nextID  int
 	filePath string
-	dirty    bool
+	dirty   bool
 
 	// Viewport camera
 	camX, camY   float64
@@ -80,120 +98,140 @@ type EditorState struct {
 
 	// Selection
 	selectedID   int
-	hoveredID    int
+	selectedIDs  map[int]bool // multi-select
 
 	// Interaction
 	dragging     bool
 	dragStartX, dragStartY float64
 	dragEntityX, dragEntityY float64
 	dragEntityID int
-	tool         EditorTool
+	dragOrigins  map[int][2]float64 // original positions for multi-drag
+	panning      bool
+	panStartX, panStartY float64
+	panCamX, panCamY     float64
 
-	// UI layout
-	screenW, screenH float64
-	panelW           float64
-	toolbarH         float64
-	consoleH         float64
+	// Tools
+	tool     Tool
 
-	// Console
-	consoleLines []string
+	// UI state
+	activeTab   EditorTab
+	showGrid    bool
+	snapEnabled bool
+	snapSize    float64
+	showConsole bool
+
+	// Layout
+	viewportW, viewportH float64
+	hierarchyW           float64
+	inspectorW           float64
+	toolbarH             float64
+	consoleH             float64
 
 	// Grid
 	gridSize     float64
-	snapEnabled  bool
-	snapSize     float64
 
-	// State flags
-	showGrid     bool
-	showHierarchy bool
-	showInspector bool
+	// Console
+	console     []string
+
+	// Theme colors
+	bgDark      color.RGBA
+	bgPanel     color.RGBA
+	bgViewport  color.RGBA
+	accent      color.RGBA
+	textPrimary color.RGBA
+	textMuted   color.RGBA
+	textFaint   color.RGBA
 }
 
-func NewEditor() *EditorState {
-	return &EditorState{
-		scene: SceneDoc{
-			Meta: SceneMeta{Name: "Untitled", Version: 1, LogicalW: 640, LogicalH: 360},
-			Entities: []*EditorEntity{
-				{ID: 1, Name: "Player", Type: "sprite", X: 320, Y: 180, W: 32, H: 32, Color: "#00e5a0", Visible: true},
-				{ID: 2, Name: "Camera", Type: "camera", X: 320, Y: 180, W: 16, H: 16, Color: "#e3b341", Visible: true},
+func NewEditor() *Editor {
+	e := &Editor{
+		scene: SceneFile{
+			Meta: SceneMeta{Name: "Untitled", Version: 1, LogicalW: 360, LogicalH: 640},
+			Entities: []*SceneEntity{
+				{ID: 1, Name: "Player", Type: "sprite", X: 180, Y: 320, W: 32, H: 32, Color: "#00e5a0", Visible: true, ZIndex: 0},
+				{ID: 2, Name: "Ground", Type: "tilemap", X: 180, Y: 600, W: 340, H: 24, Color: "#388bfd", Visible: true, ZIndex: 0},
+				{ID: 3, Name: "MainCamera", Type: "camera", X: 180, Y: 320, W: 16, H: 16, Color: "#e3b341", Visible: true, ZIndex: 0},
 			},
 		},
-		nextID:        3,
-		camZoom:       1.0,
-		selectedID:    -1,
-		hoveredID:     -1,
-		tool:          ToolSelect,
-		panelW:        200,
-		toolbarH:      36,
-		consoleH:      24,
-		gridSize:      32,
-		snapEnabled:   true,
-		snapSize:      16,
-		showGrid:      true,
-		showHierarchy: true,
-		showInspector: true,
-		consoleLines:  []string{"Kora Editor v1.0 — Go native"},
+		nextID:       4,
+		camZoom:      0.75,
+		selectedID:   -1,
+		selectedIDs:  make(map[int]bool),
+		tool:         ToolSelect,
+		activeTab:    TabScene,
+		showGrid:     true,
+		snapEnabled:  true,
+		snapSize:     16,
+		showConsole:  true,
+		hierarchyW:   220,
+		inspectorW:   240,
+		toolbarH:     40,
+		consoleH:     80,
+		filePath:     "",
+		bgDark:       color.RGBA{0x0d, 0x11, 0x17, 0xff},
+		bgPanel:      color.RGBA{0x16, 0x1b, 0x22, 0xff},
+		bgViewport:   color.RGBA{0x0d, 0x11, 0x17, 0xff},
+		accent:       color.RGBA{0x00, 0xe5, 0xa0, 0xff},
+		textPrimary:  color.RGBA{0xe6, 0xed, 0xf3, 0xff},
+		textMuted:    color.RGBA{0x7d, 0x85, 0x90, 0xff},
+		textFaint:    color.RGBA{0x48, 0x4f, 0x58, 0xff},
+	}
+	e.Log("Kora Editor v2 — Go native")
+	e.Log("Ctrl+N: novo | Ctrl+S: salvar | 1-3: ferramentas | F3: grid")
+	return e
+}
+
+func (e *Editor) Log(msg string) {
+	e.console = append(e.console, msg)
+	if len(e.console) > 200 {
+		e.console = e.console[len(e.console)-200:]
 	}
 }
 
-func (e *EditorState) Log(msg string) {
-	e.consoleLines = append(e.consoleLines, msg)
-	if len(e.consoleLines) > 100 {
-		e.consoleLines = e.consoleLines[len(e.consoleLines)-100:]
-	}
-}
-
-func (e *EditorState) Logf(format string, args ...interface{}) {
-	e.Log(fmt.Sprintf(format, args...))
+func (e *Editor) Logf(f string, args ...interface{}) {
+	e.Log(fmt.Sprintf(f, args...))
 }
 
 // ---------------------------------------------------------------------------
-// Entity operations
+// Entity management
 // ---------------------------------------------------------------------------
 
-func (e *EditorState) NewEntity(name, etype string) *EditorEntity {
+func (e *Editor) NewEntity(name, etype string) *SceneEntity {
 	e.nextID++
-	ent := &EditorEntity{
+	ent := &SceneEntity{
 		ID: e.nextID, Name: name, Type: etype,
-		X: 320, Y: 180, W: 32, H: 32,
-		Color: "#00e5a0", Visible: true,
+		X: 180, Y: 320, W: 48, H: 48,
+		Color: e.randColor(), Visible: true, ZIndex: 0,
 	}
 	e.scene.Entities = append(e.scene.Entities, ent)
+	e.selectedID = ent.ID
 	e.dirty = true
-	e.Logf("Created %s: %s", etype, name)
+	e.Logf("Added: %s (%s)", name, etype)
 	return ent
 }
 
-func (e *EditorState) GetEntity(id int) *EditorEntity {
+func (e *Editor) GetEntity(id int) *SceneEntity {
 	for _, ent := range e.scene.Entities {
-		if ent.ID == id {
-			return ent
-		}
+		if ent.ID == id { return ent }
 	}
 	return nil
 }
 
-func (e *EditorState) DeleteEntity(id int) {
-	if id < 0 { return }
-	idx := -1
+func (e *Editor) DeleteEntity(id int) {
+	if id <= 0 { return }
 	for i, ent := range e.scene.Entities {
 		if ent.ID == id {
-			idx = i
-			break
+			e.Logf("Deleted: %s", ent.Name)
+			e.scene.Entities = append(e.scene.Entities[:i], e.scene.Entities[i+1:]...)
+			if e.selectedID == id { e.selectedID = -1 }
+			delete(e.selectedIDs, id)
+			e.dirty = true
+			return
 		}
-	}
-	if idx >= 0 {
-		name := e.scene.Entities[idx].Name
-		e.scene.Entities = append(e.scene.Entities[:idx], e.scene.Entities[idx+1:]...)
-		if e.selectedID == id {
-			e.selectedID = -1
-		}
-		e.dirty = true
-		e.Logf("Deleted: %s", name)
 	}
 }
 
-func (e *EditorState) DuplicateEntity(id int) {
+func (e *Editor) DuplicateEntity(id int) {
 	ent := e.GetEntity(id)
 	if ent == nil { return }
 	e.nextID++
@@ -208,289 +246,568 @@ func (e *EditorState) DuplicateEntity(id int) {
 	e.Logf("Duplicated: %s → %s", ent.Name, clone.Name)
 }
 
+var editorColors = []string{
+	"#00e5a0", "#388bfd", "#e3b341", "#f85149",
+	"#bc8cff", "#ff7b72", "#79c0ff", "#3fb950",
+}
+
+func (e *Editor) randColor() string {
+	return editorColors[len(e.scene.Entities)%len(editorColors)]
+}
+
 // ---------------------------------------------------------------------------
-// World/Screen conversion
+// Coordinate conversion
 // ---------------------------------------------------------------------------
 
-func (e *EditorState) screenToWorld(sx, sy float64) (float64, float64) {
-	vpX := float64(e.panelW)
-	vpY := float64(e.toolbarH)
-	vpW := float64(e.screenW) - float64(e.panelW)*2
-	vpH := float64(e.screenH) - float64(e.toolbarH) - float64(e.consoleH)
+func (e *Editor) viewportRect() (x, y, w, h float64) {
+	return e.hierarchyW, e.toolbarH,
+		float64(e.screenW()) - e.hierarchyW - e.inspectorW,
+		float64(e.screenH()) - e.toolbarH - e.consoleH
+}
+
+func (e *Editor) screenW() int { w, _ := ebiten.WindowSize(); return w }
+func (e *Editor) screenH() int { _, h := ebiten.WindowSize(); return h }
+
+func (e *Editor) screenToWorld(sx, sy float64) (float64, float64) {
+	vpX, vpY, vpW, vpH := e.viewportRect()
 	cx := vpX + vpW/2 + e.camX*e.camZoom
 	cy := vpY + vpH/2 + e.camY*e.camZoom
 	return (sx - cx) / e.camZoom, (sy - cy) / e.camZoom
 }
 
-func (e *EditorState) worldToScreen(wx, wy float64) (float64, float64) {
-	vpX := float64(e.panelW)
-	vpY := float64(e.toolbarH)
-	vpW := float64(e.screenW) - float64(e.panelW)*2
-	vpH := float64(e.screenH) - float64(e.toolbarH) - float64(e.consoleH)
+func (e *Editor) worldToScreen(wx, wy float64) (float64, float64) {
+	vpX, vpY, vpW, vpH := e.viewportRect()
 	cx := vpX + vpW/2 + e.camX*e.camZoom
 	cy := vpY + vpH/2 + e.camY*e.camZoom
 	return cx + wx*e.camZoom, cy + wy*e.camZoom
 }
 
-func (e *EditorState) isInViewport(sx, sy float64) bool {
-	return sx >= float64(e.panelW) && sx < float64(e.screenW-e.panelW) &&
-		sy >= float64(e.toolbarH) && sy < float64(e.screenH-e.consoleH)
+func (e *Editor) isInViewport(sx, sy float64) bool {
+	vpX, vpY, vpW, vpH := e.viewportRect()
+	return sx >= vpX && sx < vpX+vpW && sy >= vpY && sy < vpY+vpH
 }
 
 // ---------------------------------------------------------------------------
-// Load/Save
+// Save/Load
 // ---------------------------------------------------------------------------
 
-func (e *EditorState) Save(path string) error {
+func (e *Editor) Save() {
+	path := e.filePath
+	if path == "" {
+		path = e.scene.Meta.Name + ".kora.json"
+	}
 	data, err := json.MarshalIndent(e.scene, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+		e.Logf("Error saving: %v", err)
+		return
 	}
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("write: %w", err)
+		e.Logf("Error saving: %v", err)
+		return
 	}
 	e.filePath = path
 	e.dirty = false
 	e.Logf("Saved: %s (%d entities)", path, len(e.scene.Entities))
-	return nil
 }
 
-func (e *EditorState) Load(path string) error {
+func (e *Editor) Load(path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("read: %w", err)
+		e.Logf("Error loading: %v", err)
+		return
 	}
-	var doc SceneDoc
+	var doc SceneFile
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return fmt.Errorf("unmarshal: %w", err)
+		e.Logf("Error parsing: %v", err)
+		return
 	}
 	e.scene = doc
 	e.filePath = path
 	e.dirty = false
 	e.selectedID = -1
-	e.nextID = 0
+	e.selectedIDs = make(map[int]bool)
+	e.nextID = 1
 	for _, ent := range doc.Entities {
-		if ent.ID > e.nextID {
-			e.nextID = ent.ID
+		if ent.ID >= e.nextID { e.nextID = ent.ID + 1 }
+	}
+	e.Logf("Loaded: %s (%d entities)", path, len(doc.Entities))
+}
+
+// ---------------------------------------------------------------------------
+// Hit testing
+// ---------------------------------------------------------------------------
+
+func (e *Editor) hitTest(wx, wy float64) int {
+	// Sort by ZIndex descending, then by ID descending (later = on top)
+	ents := make([]*SceneEntity, len(e.scene.Entities))
+	copy(ents, e.scene.Entities)
+	sort.SliceStable(ents, func(i, j int) bool {
+		if ents[i].ZIndex != ents[j].ZIndex {
+			return ents[i].ZIndex > ents[j].ZIndex
+		}
+		return ents[i].ID > ents[j].ID
+	})
+	for _, ent := range ents {
+		if !ent.Visible { continue }
+		if wx >= ent.X-ent.W/2 && wx <= ent.X+ent.W/2 &&
+			wy >= ent.Y-ent.H/2 && wy <= ent.Y+ent.H/2 {
+			return ent.ID
 		}
 	}
-	e.nextID++
-	e.Logf("Loaded: %s (%d entities)", path, len(doc.Entities))
-	return nil
+	return -1
 }
 
 // ---------------------------------------------------------------------------
-// Scene entity tree
+// Ebitengine Game implementation
 // ---------------------------------------------------------------------------
 
-func allEntities(ents []*EditorEntity) []*EditorEntity {
-	var result []*EditorEntity
-	for _, e := range ents {
-		result = append(result, e)
-		result = append(result, allEntities(e.Children)...)
-	}
-	return result
-}
-
-// ---------------------------------------------------------------------------
-// Ebitengine game interface
-// ---------------------------------------------------------------------------
+var _ ebiten.Game = (*EditorApp)(nil)
 
 type EditorApp struct {
-	state *EditorState
+	ed   *Editor
+	font *FontRenderer
 }
 
+type FontRenderer struct {
+	// Simple pixel-based font rendering as fallback
+}
+
+func NewFontRenderer() *FontRenderer {
+	return &FontRenderer{}
+}
+
+// DrawString draws text at screen position using simple pixel rectangles
+// as a fallback — will be replaced by render.DefaultFont later
+func (f *FontRenderer) DrawString(screen *ebiten.Image, s string, x, y float64, scale float64, clr color.RGBA) {
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(scale, scale)
+	op.GeoM.Translate(x, y)
+	op.ColorScale.SetR(float32(clr.R)/255)
+	op.ColorScale.SetG(float32(clr.G)/255)
+	op.ColorScale.SetB(float32(clr.B)/255)
+	op.ColorScale.SetA(float32(clr.A)/255)
+
+	px := 0.0
+	for _, ch := range s {
+		if ch == '\n' {
+			px = 0
+			y += 10 * scale
+			continue
+		}
+		// Draw each character as a small rect (bitmap-style)
+		if ch >= 32 && ch <= 126 {
+			charW := 6.0 * scale
+			charH := 8.0 * scale
+			_ = charH
+			op2 := *op
+			op2.GeoM.SetElement(0, 0, charW)
+			op2.GeoM.SetElement(0, 2, x+px)
+			op2.GeoM.SetElement(1, 1, charH)
+			op2.GeoM.SetElement(1, 2, y)
+			screen.DrawImage(whitePixel, &op2)
+		}
+		px += 6.0 * scale
+	}
+}
+
+var whitePixel = func() *ebiten.Image {
+	img := ebiten.NewImage(1, 1)
+	img.Fill(color.White)
+	return img
+}()
+
 func (app *EditorApp) Update() error {
-	e := app.state
-	w, h := ebiten.WindowSize(); e.screenW, e.screenH = float64(w), float64(h)
+	e := app.ed
 
-	// --- Keyboard shortcuts ---
-	if inpututil.IsKeyJustPressed(ebiten.KeyN) && ebiten.IsKeyPressed(ebiten.KeyControl) {
-		e.scene = SceneDoc{Meta: SceneMeta{Name: "Untitled", Version: 1, LogicalW: 640, LogicalH: 360}}
-		e.nextID = 1
-		e.selectedID = -1
-		e.dirty = false
-		e.filePath = ""
-		e.Log("New scene created")
+	// --- Keyboard shortcuts (global) ---
+	if inpututil.IsKeyJustPressed(ebiten.KeyN) && isCtrlHeld() {
+		e.scene = SceneFile{Meta: SceneMeta{Name: "Untitled", Version: 1, LogicalW: 360, LogicalH: 640}}
+		e.nextID = 1; e.selectedID = -1; e.dirty = false; e.filePath = ""
+		e.Log("New scene")
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyS) && ebiten.IsKeyPressed(ebiten.KeyControl) {
-		path := e.filePath
-		if path == "" {
-			path = "untitled.kora.json"
-		}
-		e.Save(path)
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyO) && ebiten.IsKeyPressed(ebiten.KeyControl) {
-		// For now, just try to open a dialog via console
-		e.Log("Use: make editor-load FILE=scene.kora.json")
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyF3) {
-		e.showGrid = !e.showGrid
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyF5) {
-		e.Log("Play mode - not yet implemented")
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		if e.selectedID > 0 {
-			e.DeleteEntity(e.selectedID)
-		}
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyD) && ebiten.IsKeyPressed(ebiten.KeyControl) {
-		if e.selectedID > 0 {
-			e.DuplicateEntity(e.selectedID)
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyS) && isCtrlHeld() {
+		e.Save()
 	}
 
-	// --- Tool switching ---
+	// Tool switching
 	if inpututil.IsKeyJustPressed(ebiten.Key1) { e.tool = ToolSelect }
 	if inpututil.IsKeyJustPressed(ebiten.Key2) { e.tool = ToolMove }
-	if inpututil.IsKeyJustPressed(ebiten.Key3) { e.tool = ToolAdd }
+	if inpututil.IsKeyJustPressed(ebiten.Key3) { e.tool = ToolScale }
 
-	// --- Mouse ---
-	mx, my := ebiten.CursorPosition()
-	mxf, myf := float64(mx), float64(my)
+	// Tab switching via F-keys
+	if inpututil.IsKeyJustPressed(ebiten.KeyF1) { e.activeTab = TabScene }
+	if inpututil.IsKeyJustPressed(ebiten.KeyF2) { e.activeTab = TabAssets }
+	if inpututil.IsKeyJustPressed(ebiten.KeyF3) { e.activeTab = TabCode }
+	if inpututil.IsKeyJustPressed(ebiten.KeyF4) { e.activeTab = TabPreview }
 
-	if e.isInViewport(mxf, myf) {
-		wx, wy := e.screenToWorld(mxf, myf)
+	// Delete selected
+	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		if e.selectedID > 0 { e.DeleteEntity(e.selectedID) }
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) && isCtrlHeld() {
+		if e.selectedID > 0 { e.DuplicateEntity(e.selectedID) }
+	}
 
-		// Scroll to zoom
-		_, dy := ebiten.Wheel()
-		if dy != 0 {
+	// Grid toggle
+	if inpututil.IsKeyJustPressed(ebiten.KeyG) && isCtrlHeld() {
+		e.showGrid = !e.showGrid
+	}
+
+	// Snap toggle
+	if inpututil.IsKeyJustPressed(ebiten.KeyShift) {
+		e.snapEnabled = !e.snapEnabled
+	}
+
+	// --- Mouse handling ---
+	mx, myRaw := ebiten.CursorPosition()
+	mxf := float64(mx)
+	my := float64(myRaw)
+
+	// Scroll wheel for zoom
+	_, dy := ebiten.Wheel()
+	if dy != 0 {
+		if e.isInViewport(mxf, my) {
 			e.camZoom *= 1.0 + dy*0.1
 			if e.camZoom < 0.1 { e.camZoom = 0.1 }
 			if e.camZoom > 10 { e.camZoom = 10 }
 		}
+	}
 
-		// Middle button drag to pan
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) {
+	// Middle mouse for panning
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) {
+		if !e.panning {
+			e.panning = true
+			e.panStartX, e.panStartY = mxf, my
+			e.panCamX, e.panCamY = e.camX, e.camY
+		}
+		e.camX = e.panCamX + (mxf-e.panStartX)/e.camZoom
+		e.camY = e.panCamY + (my-e.panStartY)/e.camZoom
+	} else {
+		e.panning = false
+	}
+
+	// Left mouse in viewport
+	if e.isInViewport(mxf, my) && !e.panning {
+		wx, wy := e.screenToWorld(mxf, my)
+
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			if !e.dragging {
-				e.dragging = true
-				e.dragStartX, e.dragStartY = mxf, myf
-				e.dragEntityX, e.dragEntityY = e.camX, e.camY
-			}
-			e.camX = e.dragEntityX + (mxf - e.dragStartX) / e.camZoom
-			e.camY = e.dragEntityY + (myf - e.dragStartY) / e.camZoom
-		} else if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			if !e.dragging {
-				// Hit test: check entities in reverse draw order
-				hitID := -1
-				ents := e.scene.Entities
-				for i := len(ents) - 1; i >= 0; i-- {
-					ent := ents[i]
-					if !ent.Visible { continue }
-					if wx >= ent.X - ent.W/2 && wx <= ent.X + ent.W/2 &&
-						wy >= ent.Y - ent.H/2 && wy <= ent.Y + ent.H/2 {
-						hitID = ent.ID
-						break
+				hit := e.hitTest(wx, wy)
+				if hit > 0 {
+					// Ctrl+click for multi-select
+					if isCtrlHeld() {
+						if e.selectedIDs[hit] {
+							delete(e.selectedIDs, hit)
+							if e.selectedID == hit {
+								e.selectedID = -1
+							}
+						} else {
+							e.selectedIDs[hit] = true
+							e.selectedID = hit
+						}
+					} else {
+						if !e.selectedIDs[hit] {
+							e.selectedIDs = make(map[int]bool)
+							e.selectedID = hit
+						}
 					}
-				}
-				if hitID >= 0 {
-					e.selectedID = hitID
 					e.dragging = true
-					e.dragEntityID = hitID
-					ent := e.GetEntity(hitID)
+					e.dragEntityID = hit
+					e.dragStartX, e.dragStartY = wx, wy
+					ent := e.GetEntity(hit)
 					if ent != nil {
-						e.dragStartX, e.dragStartY = wx, wy
 						e.dragEntityX, e.dragEntityY = ent.X, ent.Y
 					}
+					// Store original positions for multi-drag
+					e.dragOrigins = make(map[int][2]float64)
+					for id := range e.selectedIDs {
+						if ent := e.GetEntity(id); ent != nil {
+							e.dragOrigins[id] = [2]float64{ent.X, ent.Y}
+						}
+					}
+					if !e.selectedIDs[hit] {
+						e.dragOrigins[hit] = [2]float64{e.dragEntityX, e.dragEntityY}
+					}
 				} else {
-					e.selectedID = -1
+					if !isCtrlHeld() {
+						e.selectedID = -1
+						e.selectedIDs = make(map[int]bool)
+					}
 				}
 			} else {
-				// Dragging an entity
-				if e.dragEntityID > 0 {
-					ent := e.GetEntity(e.dragEntityID)
-					if ent != nil {
-						dx := wx - e.dragStartX
-						dy := wy - e.dragStartY
-						if e.snapEnabled && e.snapSize > 0 {
-							ent.X = math.Round((e.dragEntityX+dx)/e.snapSize) * e.snapSize
-							ent.Y = math.Round((e.dragEntityY+dy)/e.snapSize) * e.snapSize
-						} else {
-							ent.X = e.dragEntityX + dx
-							ent.Y = e.dragEntityY + dy
-						}
-						e.dirty = true
+				// Dragging
+				dx := wx - e.dragStartX
+				dy := wy - e.dragStartY
+				snap := func(v float64) float64 {
+					if e.snapEnabled && e.snapSize > 0 {
+						return math.Round(v/e.snapSize) * e.snapSize
+					}
+					return v
+				}
+				for id, origin := range e.dragOrigins {
+					if ent := e.GetEntity(id); ent != nil {
+						ent.X = snap(origin[0] + dx)
+						ent.Y = snap(origin[1] + dy)
 					}
 				}
 			}
 		} else {
 			e.dragging = false
 			e.dragEntityID = -1
-
-			// Hover detection
-			e.hoveredID = -1
-			ents := e.scene.Entities
-			for i := len(ents) - 1; i >= 0; i-- {
-				ent := ents[i]
-				if !ent.Visible { continue }
-				if wx >= ent.X - ent.W/2 && wx <= ent.X + ent.W/2 &&
-					wy >= ent.Y - ent.H/2 && wy <= ent.Y + ent.H/2 {
-					e.hoveredID = ent.ID
-					break
-				}
-			}
+			e.dragOrigins = nil
 		}
+	} else {
+		e.dragging = false
+		e.dragEntityID = -1
+		e.dragOrigins = nil
 	}
 
 	return nil
 }
 
-func (app *EditorApp) Draw(screen *ebiten.Image) {
-	e := app.state
+func isCtrlHeld() bool {
+	return ebiten.IsKeyPressed(ebiten.KeyControl) || ebiten.IsKeyPressed(ebiten.KeyMeta)
+}
 
-	// Background
-	screen.Fill(color.RGBA{0x1a, 0x1a, 0x2e, 0xff})
+func (app *EditorApp) Draw(screen *ebiten.Image) {
+	e := app.ed
+
+	// --- Background ---
+	screen.Fill(e.bgDark)
 
 	// --- Toolbar ---
-	drawRect(screen, 0, 0, e.screenW, e.toolbarH, color.RGBA{0x25, 0x25, 0x3d, 0xff})
-	tbY := float64(e.toolbarH) / 2
+	e.drawToolbar(screen)
 
-	// Title
-	title := fmt.Sprintf("Kora Editor — %s%s", e.scene.Meta.Name, map[bool]string{true: " ●", false: ""}[e.dirty])
-	drawText(screen, title, 8, tbY-6, 1.0, color.White)
+	// --- Hierarchy panel ---
+	e.drawHierarchy(screen)
 
-	// Tool buttons
-	btnX := 300.0
-	tools := []string{"Sel", "Move", "Add"}
-	curTool := int(e.tool)
-	for i, name := range tools {
-		bg := color.RGBA{0x3a, 0x3a, 0x55, 0xff}
-		if i == curTool {
-			bg = color.RGBA{0x00, 0xe5, 0xa0, 0xaa}
-		}
-		drawRect(screen, btnX, 4, 48, e.toolbarH-8, bg)
-		drawText(screen, name, btnX+16, tbY-6, 0.8, color.White)
-		btnX += 54
-	}
-
-	// FPS
-	fps := fmt.Sprintf("FPS: %.0f  Zoom: %.0f%%", ebiten.ActualFPS(), e.camZoom*100)
-	drawText(screen, fps, float64(e.screenW)-160, tbY-6, 0.8, color.RGBA{0x88, 0x88, 0xaa, 0xff})
-
-	// Snap toggle
-	snapText := fmt.Sprintf("Snap: %d", int(e.snapSize))
-	snapColor := color.RGBA{0x88, 0x88, 0xaa, 0xff}
-	if e.snapEnabled { snapColor = color.RGBA{0x00, 0xe5, 0xa0, 0xff} }
-	drawText(screen, snapText, float64(e.screenW)-280, tbY-6, 0.8, snapColor)
+	// --- Inspector panel ---
+	e.drawInspector(screen)
 
 	// --- Viewport ---
-	vpX := float64(e.panelW)
-	vpY := float64(e.toolbarH)
-	vpW := float64(e.screenW) - float64(e.panelW)*2
-	vpH := float64(e.screenH) - float64(e.toolbarH) - float64(e.consoleH)
-	drawRect(screen, vpX, vpY, vpW, vpH, color.RGBA{0x0d, 0x0d, 0x1a, 0xff})
+	e.drawViewport(screen)
+
+	// --- Console ---
+	e.drawConsole(screen)
+
+	// --- Side borders ---
+	_, vpY, vpW, vpH := e.viewportRect()
+	sep := color.RGBA{0x21, 0x26, 0x2d, 0xff}
+	fillRect(screen, e.hierarchyW, vpY, 1, vpH, sep)
+	fillRect(screen, e.hierarchyW+vpW, vpY, 1, vpH, sep)
+}
+
+func (e *Editor) drawToolbar(screen *ebiten.Image) {
+	w := e.screenW()
+	// Background
+	fillRect(screen, 0, 0, float64(w), e.toolbarH, e.bgPanel)
+
+	// Logo / Title
+	logoX := 8.0
+	fillRect(screen, logoX, 8, 20, e.toolbarH-16, e.accent) // accent bar
+	drawTextS(screen, "Kora", logoX+28, 10, 1.2, e.accent)
+	drawTextS(screen, "Editor", logoX+62, 12, 0.8, e.textMuted)
+
+	// File buttons
+	btnY := 6.0
+	btnH := e.toolbarH - 12
+
+	buttons := []struct {
+		x, w float64
+		text string
+		key  string
+		fn   func()
+	}{
+		{200, 50, "Novo", "N", func() {
+			e.scene = SceneFile{Meta: SceneMeta{Name: "Untitled", Version: 1, LogicalW: 360, LogicalH: 640}}
+			e.nextID = 1; e.selectedID = -1; e.dirty = false; e.filePath = ""
+			e.Log("New scene")
+		}},
+		{254, 50, "Salvar", "S", e.Save},
+		{308, 50, "Abrir", "O", func() { e.Log("Use: make editor FILE=scene.kora.json") }},
+	}
+	for _, btn := range buttons {
+		fillRect(screen, btn.x, btnY, btn.w, btnH, color.RGBA{0x21, 0x26, 0x2d, 0xff})
+		drawTextS(screen, btn.text, btn.x+4, btnY+4, 0.7, e.textPrimary)
+		_ = btn.key
+	}
+
+	// Tab buttons
+	tabs := []struct {
+		x    float64
+		name string
+		tab  EditorTab
+	}{
+		{400, "Scene", TabScene},
+		{450, "Assets", TabAssets},
+		{500, "Script", TabCode},
+	}
+	for _, tab := range tabs {
+		col := e.textMuted
+		bg := color.RGBA{}
+		if e.activeTab == tab.tab {
+			col = e.accent
+			bg = color.RGBA{0x0d, 0x11, 0x17, 0xaa}
+		}
+		if bg.A > 0 {
+			fillRect(screen, tab.x, btnY, 46, btnH, bg)
+		}
+		drawTextS(screen, "▶", tab.x+2, btnY+4, 0.6, col)
+		drawTextS(screen, tab.name, tab.x+16, btnY+4, 0.7, col)
+	}
+
+	// Tool buttons
+	toolBtns := []struct {
+		x    float64
+		name string
+		t    Tool
+	}{
+		{560, "▼", ToolSelect},
+		{590, "✚", ToolMove},
+		{620, "◧", ToolScale},
+	}
+	for _, tb := range toolBtns {
+		bg := color.RGBA{0x21, 0x26, 0x2d, 0xff}
+		if e.tool == tb.t { bg = color.RGBA{0x00, 0xe5, 0xa0, 0x30} }
+		fillRect(screen, tb.x, btnY, 28, btnH, bg)
+		drawTextS(screen, tb.name, tb.x+6, btnY+4, 0.7, e.textPrimary)
+	}
+
+	// Right side info
+	info := fmt.Sprintf("%dx%d  Zoom: %.0f%%",
+		e.scene.Meta.LogicalW, e.scene.Meta.LogicalH, e.camZoom*100)
+	drawTextS(screen, info, float64(w)-150, 12, 0.7, e.textMuted)
+
+	// Dirty indicator
+	if e.dirty {
+		drawTextS(screen, "●", float64(w)-172, 10, 0.9, e.accent)
+	}
+
+	// Bottom border
+	fillRect(screen, 0, e.toolbarH-1, float64(w), 1, color.RGBA{0x21, 0x26, 0x2d, 0xff})
+}
+
+func (e *Editor) drawHierarchy(screen *ebiten.Image) {
+	_, vpY, _, vpH := e.viewportRect()
+	// Background
+	fillRect(screen, 0, vpY, e.hierarchyW, vpH, e.bgPanel)
+
+	// Header
+	drawTextS(screen, "Hierarquia", 8, vpY+6, 0.8, e.textMuted)
+	fillRect(screen, 0, vpY+24, e.hierarchyW, 1, color.RGBA{0x21, 0x26, 0x2d, 0xff})
+
+	// Entity list
+	y := vpY + 30
+	for _, ent := range e.scene.Entities {
+		// Background for selected
+		if ent.ID == e.selectedID || e.selectedIDs[ent.ID] {
+			fillRect(screen, 2, y-1, e.hierarchyW-4, 18, color.RGBA{0x00, 0xe5, 0xa0, 0x15})
+		}
+
+		// Icon
+		icon := map[string]string{"sprite": "▣", "camera": "◉", "tilemap": "▤", "audio": "♪", "custom": "◇"}
+		ic := icon[ent.Type]
+		if ic == "" { ic = "⬡" }
+
+		// Name
+		col := e.textPrimary
+		if ent.ID == e.selectedID { col = e.accent }
+
+		// Visibility toggle
+		visIcon := "👁"
+		if !ent.Visible { visIcon = "🚫" }
+
+		drawTextS(screen, visIcon, 6, y, 0.7, e.textMuted)
+		drawTextS(screen, ic+" "+ent.Name, 24, y, 0.7, col)
+
+		// Z-index badge
+		drawTextS(screen, fmt.Sprintf("z%d", ent.ZIndex), e.hierarchyW-40, y, 0.6, e.textFaint)
+		y += 18
+		if y > vpY+vpH-20 { break }
+	}
+
+	// Right border
+	fillRect(screen, e.hierarchyW-1, vpY, 1, vpH, color.RGBA{0x21, 0x26, 0x2d, 0xff})
+}
+
+func (e *Editor) drawInspector(screen *ebiten.Image) {
+	_, vpY, vpW, vpH := e.viewportRect()
+	ix := e.hierarchyW + vpW
+
+	// Background
+	fillRect(screen, ix, vpY, e.inspectorW, vpH, e.bgPanel)
+
+	// Header
+	drawTextS(screen, "Inspetor", ix+8, vpY+6, 0.8, e.textMuted)
+	fillRect(screen, ix, vpY+24, e.inspectorW, 1, color.RGBA{0x21, 0x26, 0x2d, 0xff})
+
+	if e.selectedID <= 0 {
+		drawTextS(screen, "Nenhuma entidade", ix+8, vpY+36, 0.7, e.textFaint)
+		return
+	}
+
+	ent := e.GetEntity(e.selectedID)
+	if ent == nil { return }
+
+	y := vpY + 32
+	propY := func() float64 { y += 18; return y - 18 }
+
+	// Identity section
+	drawTextS(screen, "Identidade", ix+8, propY(), 0.7, e.textMuted)
+	drawTextS(screen, "Nome: "+ent.Name, ix+12, propY(), 0.7, e.textPrimary)
+	drawTextS(screen, "Tipo: "+ent.Type, ix+12, propY(), 0.7, e.textMuted)
+
+	// Transform section
+	y += 4
+	drawTextS(screen, "Transform", ix+8, propY(), 0.7, e.textMuted)
+	drawTextS(screen, fmt.Sprintf("X: %.0f", ent.X), ix+12, propY(), 0.7, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Y: %.0f", ent.Y), ix+12, propY(), 0.7, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("W: %.0f", ent.W), ix+12, propY(), 0.7, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("H: %.0f", ent.H), ix+12, propY(), 0.7, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Rot: %.0f°", ent.Rotation), ix+12, propY(), 0.7, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Z-Index: %d", ent.ZIndex), ix+12, propY(), 0.7, e.textPrimary)
+
+	// Visual section
+	y += 4
+	drawTextS(screen, "Visual", ix+8, propY(), 0.7, e.textMuted)
+	drawTextS(screen, "Visível: "+map[bool]string{true: "Sim", false: "Não"}[ent.Visible], ix+12, propY(), 0.7, e.textPrimary)
+	if ent.AssetID != "" {
+		drawTextS(screen, "Asset: "+filepath.Base(ent.AssetID), ix+12, propY(), 0.7, e.textMuted)
+	}
+}
+
+func (e *Editor) drawViewport(screen *ebiten.Image) {
+	vpX, vpY, vpW, vpH := e.viewportRect()
+
+	// Background
+	fillRect(screen, vpX, vpY, vpW, vpH, e.bgViewport)
 
 	// Grid
 	if e.showGrid {
-		drawGrid(screen, e)
+		e.drawGrid(screen)
 	}
 
-	// Entities
-	drawRect(screen, vpX, vpY, vpW, vpH, color.RGBA{0, 0, 0, 0}, 2) // viewport border
-	for _, ent := range e.scene.Entities {
+	// Logical area highlight
+	lx, ly := e.worldToScreen(float64(-e.scene.Meta.LogicalW)/2, float64(-e.scene.Meta.LogicalH)/2)
+	lw := float64(e.scene.Meta.LogicalW) * e.camZoom
+	lh := float64(e.scene.Meta.LogicalH) * e.camZoom
+	fillRect(screen, lx, ly, lw, lh, color.RGBA{0, 0, 0, 0x40})
+	drawRectBorder(screen, lx, ly, lw, lh, color.RGBA{0x00, 0xe5, 0xa0, 0x30}, 1)
+
+	// Sort entities by ZIndex for drawing
+	ents := make([]*SceneEntity, len(e.scene.Entities))
+	copy(ents, e.scene.Entities)
+	sort.SliceStable(ents, func(i, j int) bool {
+		if ents[i].ZIndex != ents[j].ZIndex {
+			return ents[i].ZIndex < ents[j].ZIndex
+		}
+		return ents[i].ID < ents[j].ID
+	})
+
+	// Draw entities
+	for _, ent := range ents {
 		if !ent.Visible { continue }
-		drawEntity(screen, e, ent)
+		e.drawEntitySprite(screen, ent)
 	}
 
 	// Selection outline
@@ -499,61 +816,86 @@ func (app *EditorApp) Draw(screen *ebiten.Image) {
 		if ent != nil {
 			sx, sy := e.worldToScreen(ent.X, ent.Y)
 			sw, sh := ent.W*e.camZoom, ent.H*e.camZoom
-			drawRect(screen, sx-sw/2-2, sy-sh/2-2, sw+4, sh+4, color.RGBA{0x00, 0xe5, 0xa0, 0xff}, 2)
+			drawRectBorder(screen, sx-sw/2-2, sy-sh/2-2, sw+4, sh+4, e.accent, 2)
 		}
 	}
 
-	// --- Hierarchy panel ---
-	if e.showHierarchy {
-		drawRect(screen, 0, vpY, vpX, vpH, color.RGBA{0x1f, 0x1f, 0x33, 0xff})
-		drawText(screen, "Hierarquia", 6, vpY+4, 0.9, color.RGBA{0x88, 0x88, 0xaa, 0xff})
-		y := vpY + 22
-		for _, ent := range e.scene.Entities {
-			col := color.RGBA{0xff, 0xff, 0xff, 0xff}
-			if ent.ID == e.selectedID { col = color.RGBA{0x00, 0xe5, 0xa0, 0xff} }
-			if ent.ID == e.hoveredID { col = color.RGBA{0x00, 0xc8, 0xff, 0xff} }
-			icon := map[string]string{"sprite": "▣", "camera": "◉", "tilemap": "▤", "audio": "♪", "custom": "◇"}[ent.Type]
-			drawText(screen, fmt.Sprintf("%s %s", icon, ent.Name), 8, y, 0.8, col)
-			y += 18
-			if y > vpY+vpH-10 { break }
+	// Viewport border
+	drawRectBorder(screen, vpX, vpY, vpW, vpH, color.RGBA{0x21, 0x26, 0x2d, 0xff}, 1)
+}
+
+func (e *Editor) drawGrid(screen *ebiten.Image) {
+	vpX, vpY, vpW, vpH := e.viewportRect()
+	gs := e.gridSize * e.camZoom
+	if gs < 4 { gs = 4 }
+
+	ox := math.Mod(e.camX*e.camZoom, gs)
+	oy := math.Mod(e.camY*e.camZoom, gs)
+	if ox < 0 { ox += gs }
+	if oy < 0 { oy += gs }
+
+	gridCol := color.RGBA{0x2a, 0x2a, 0x4a, 0x30}
+
+	for gx := vpX + ox; gx < vpX+vpW; gx += gs {
+		fillRect(screen, gx, vpY, 1, vpH, gridCol)
+	}
+	for gy := vpY + oy; gy < vpY+vpH; gy += gs {
+		fillRect(screen, vpX, gy, vpW, 1, gridCol)
+	}
+}
+
+func (e *Editor) drawEntitySprite(screen *ebiten.Image, ent *SceneEntity) {
+	sx, sy := e.worldToScreen(ent.X, ent.Y)
+	sw := ent.W * e.camZoom
+	sh := ent.H * e.camZoom
+
+	// Determine color
+	var col color.RGBA
+	if ent.Color != "" && len(ent.Color) == 7 {
+		col = parseHex(ent.Color)
+	} else {
+		colors := map[string]color.RGBA{
+			"sprite": {0x00, 0xe5, 0xa0, 0xaa},
+			"camera": {0xe3, 0xb3, 0x41, 0xaa},
+			"tilemap": {0x38, 0x8b, 0xfd, 0xaa},
+			"audio": {0xf8, 0x51, 0x49, 0xaa},
+			"custom": {0xbc, 0x8c, 0xff, 0xaa},
 		}
+		col = colors[ent.Type]
+		if col == (color.RGBA{}) { col = color.RGBA{0x88, 0x88, 0xcc, 0xaa} }
 	}
 
-	// --- Inspector panel ---
-	if e.showInspector {
-		ix := float64(e.screenW - e.panelW)
-		drawRect(screen, ix, vpY, float64(e.panelW), vpH, color.RGBA{0x1f, 0x1f, 0x33, 0xff})
-		drawText(screen, "Inspetor", ix+6, vpY+4, 0.9, color.RGBA{0x88, 0x88, 0xaa, 0xff})
+	// Fill
+	fillRect(screen, sx-sw/2, sy-sh/2, sw, sh, col)
 
-		if e.selectedID > 0 {
-			ent := e.GetEntity(e.selectedID)
-			if ent != nil {
-				y := vpY + 24
-				drawText(screen, "Nome: "+ent.Name, ix+8, y, 0.8, color.White); y += 16
-				drawText(screen, fmt.Sprintf("Tipo: %s", ent.Type), ix+8, y, 0.8, color.RGBA{0xaa, 0xaa, 0xcc, 0xff}); y += 16
-				drawText(screen, fmt.Sprintf("X: %.0f", ent.X), ix+8, y, 0.8, color.White); y += 16
-				drawText(screen, fmt.Sprintf("Y: %.0f", ent.Y), ix+8, y, 0.8, color.White); y += 16
-				drawText(screen, fmt.Sprintf("W: %.0f", ent.W), ix+8, y, 0.8, color.White); y += 16
-				drawText(screen, fmt.Sprintf("H: %.0f", ent.H), ix+8, y, 0.8, color.White); y += 16
-				if ent.Rotation != 0 {
-					drawText(screen, fmt.Sprintf("Rot: %.1f°", ent.Rotation), ix+8, y, 0.8, color.White); y += 16
-				}
-				drawText(screen, fmt.Sprintf("Visível: %t", ent.Visible), ix+8, y, 0.8, color.RGBA{0xaa, 0xaa, 0xcc, 0xff}); y += 16
-				if ent.AssetID != "" {
-					drawText(screen, "Asset: "+filepath.Base(ent.AssetID), ix+8, y, 0.8, color.RGBA{0xaa, 0xaa, 0xcc, 0xff})
-				}
-			}
-		} else {
-			drawText(screen, "Selecione uma entidade", ix+8, vpY+24, 0.8, color.RGBA{0x66, 0x66, 0x88, 0xff})
-		}
-	}
+	// Border
+	drawRectBorder(screen, sx-sw/2, sy-sh/2, sw, sh,
+		color.RGBA{col.R, col.G, col.B, 0xff}, 1.5)
 
-	// --- Console ---
-	cy := float64(e.screenH - e.consoleH)
-	drawRect(screen, 0, cy, float64(e.screenW), float64(e.consoleH), color.RGBA{0x15, 0x15, 0x25, 0xff})
-	if len(e.consoleLines) > 0 {
-		last := e.consoleLines[len(e.consoleLines)-1]
-		drawText(screen, "❯ "+last, 8, cy+6, 0.8, color.RGBA{0x88, 0xcc, 0xaa, 0xff})
+	// Name label
+	labelScale := 0.7 * e.camZoom
+	if labelScale < 0.5 { labelScale = 0.5 }
+	if labelScale > 1.2 { labelScale = 1.2 }
+	drawTextS(screen, ent.Name, sx-sw/2+2, sy-sh/2-14*labelScale, labelScale, e.textPrimary)
+}
+
+func (e *Editor) drawConsole(screen *ebiten.Image) {
+	w := e.screenW()
+	cy := float64(e.screenH()) - e.consoleH
+
+	// Background
+	fillRect(screen, 0, cy, float64(w), e.consoleH, e.bgPanel)
+
+	// Header
+	drawTextS(screen, "Console", 8, cy+4, 0.7, e.textMuted)
+	fillRect(screen, 0, cy, float64(w), 1, color.RGBA{0x21, 0x26, 0x2d, 0xff})
+
+	// Messages (show last ~3 lines)
+	start := len(e.console) - 3
+	if start < 0 { start = 0 }
+	for i := start; i < len(e.console); i++ {
+		lineY := cy + 18 + float64(i-start)*16
+		drawTextS(screen, "❯ "+e.console[i], 8, lineY, 0.65, e.textMuted)
 	}
 }
 
@@ -565,133 +907,73 @@ func (app *EditorApp) Layout(outsideW, outsideH int) (int, int) {
 // Drawing helpers
 // ---------------------------------------------------------------------------
 
-var whitePixel = ebiten.NewImage(1, 1)
-
-func init() {
-	whitePixel.Fill(color.White)
-}
-
-func drawRect(screen *ebiten.Image, x, y, w, h float64, c color.Color, borderWidth ...float64) {
-	if len(borderWidth) > 0 && borderWidth[0] > 0 {
-		bw := borderWidth[0]
-		// Draw as border: 4 rectangles
-		fillRect(screen, x, y, w, bw, c)        // top
-		fillRect(screen, x, y+h-bw, w, bw, c)    // bottom
-		fillRect(screen, x, y, bw, h, c)          // left
-		fillRect(screen, x+w-bw, y, bw, h, c)     // right
-		return
-	}
-	fillRect(screen, x, y, w, h, c)
-}
-
-func fillRect(screen *ebiten.Image, x, y, w, h float64, c color.Color) {
+func fillRect(screen *ebiten.Image, x, y, w, h float64, c color.RGBA) {
 	if w <= 0 || h <= 0 { return }
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(w, h)
 	op.GeoM.Translate(x, y)
-	op.ColorScale.SetR(float32(colorComponent(c, 0)))
-	op.ColorScale.SetG(float32(colorComponent(c, 1)))
-	op.ColorScale.SetB(float32(colorComponent(c, 2)))
-	op.ColorScale.SetA(float32(colorComponent(c, 3)))
-	screen.DrawImage(whitePixel, op)
-}
-
-func colorComponent(c color.Color, idx int) uint8 {
-	rgba := color.RGBAModel.Convert(c).(color.RGBA)
-	switch idx {
-	case 0: return rgba.R
-	case 1: return rgba.G
-	case 2: return rgba.B
-	case 3: return rgba.A
+	alpha := float32(c.A) / 255
+	if alpha > 0 {
+		op.ColorScale.SetR(float32(c.R)/255)
+		op.ColorScale.SetG(float32(c.G)/255)
+		op.ColorScale.SetB(float32(c.B)/255)
+		op.ColorScale.SetA(alpha)
+		screen.DrawImage(whitePixel, op)
 	}
-	return 255
 }
 
-func drawText(screen *ebiten.Image, text string, x, y float64, scale float64, clr color.Color) {
+func drawRectBorder(screen *ebiten.Image, x, y, w, h float64, c color.RGBA, bw float64) {
+	fillRect(screen, x, y, w, bw, c)       // top
+	fillRect(screen, x, y+h-bw, w, bw, c)   // bottom
+	fillRect(screen, x, y, bw, h, c)         // left
+	fillRect(screen, x+w-bw, y, bw, h, c)    // right
+}
+
+func drawTextS(screen *ebiten.Image, text string, x, y float64, scale float64, clr color.RGBA) {
 	if text == "" { return }
-	// Uses the built-in bitmap font from render package
-	// For now, use a simple approach: draw with color
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(scale, scale)
 	op.GeoM.Translate(x, y)
-	rgba := color.RGBAModel.Convert(clr).(color.RGBA)
-	op.ColorScale.SetR(float32(rgba.R) / 255)
-	op.ColorScale.SetG(float32(rgba.G) / 255)
-	op.ColorScale.SetB(float32(rgba.B) / 255)
-	op.ColorScale.SetA(float32(rgba.A) / 255)
+	op.ColorScale.SetR(float32(clr.R) / 255)
+	op.ColorScale.SetG(float32(clr.G) / 255)
+	op.ColorScale.SetB(float32(clr.B) / 255)
+	op.ColorScale.SetA(float32(clr.A) / 255)
 
-	// Simple monochrome text rendering using the font system
-	// Each character is drawn as a small rect from the font atlas
-	_ = op
-	_ = screen
-	// TODO: Wire up render.DefaultFont when available
-	// For now, log is sufficient — font rendering requires GPU context
-}
+	px := 0.0
+	charW := 6.0 * scale
+	charH := 8.0 * scale
 
-func drawEntity(screen *ebiten.Image, e *EditorState, ent *EditorEntity) {
-	sx, sy := e.worldToScreen(ent.X, ent.Y)
-	sw := ent.W * e.camZoom
-	sh := ent.H * e.camZoom
-
-	// Parse color
-	col := parseHexColor(ent.Color)
-	if ent.Color == "" || (col.R == 0 && col.G == 0 && col.B == 0 && col.A == 0) {
-		colors := map[string]color.RGBA{
-			"sprite":  {0x00, 0xe5, 0xa0, 0xcc},
-			"camera":  {0xe3, 0xb3, 0x41, 0xcc},
-			"tilemap": {0x38, 0x8b, 0xfd, 0xcc},
-			"audio":   {0xf8, 0x51, 0x49, 0xcc},
-			"custom":  {0xbc, 0x8c, 0xff, 0xcc},
+	for _, ch := range text {
+		if ch == '\n' {
+			px = 0
+			y += charH + 2*scale
+			continue
 		}
-		col = colors[ent.Type]
-		if (col.R == 0 && col.G == 0 && col.B == 0) { col = color.RGBA{0x88, 0x88, 0xcc, 0xcc} }
-	}
-
-	// Entity rect
-	drawRect(screen, sx-sw/2, sy-sh/2, sw, sh, col)
-
-	// Entity name
-	nameScale := 0.7 * e.camZoom
-	if nameScale < 0.5 { nameScale = 0.5 }
-	if nameScale > 1.2 { nameScale = 1.2 }
-	drawText(screen, ent.Name, sx-sw/2+2, sy-sh/2-14*nameScale, nameScale, color.RGBA{0xff, 0xff, 0xff, 0xcc})
-}
-
-func drawGrid(screen *ebiten.Image, e *EditorState) {
-	gs := e.gridSize * e.camZoom
-	if gs < 4 { gs = 4 }
-
-	vpX := float64(e.panelW)
-	vpY := float64(e.toolbarH)
-	vpW := float64(e.screenW) - float64(e.panelW)*2
-	vpH := float64(e.screenH) - float64(e.toolbarH) - float64(e.consoleH)
-
-	ox := math.Mod(e.camX*e.camZoom, gs)
-	oy := math.Mod(e.camY*e.camZoom, gs)
-	if ox < 0 { ox += gs }
-	if oy < 0 { oy += gs }
-
-	gridCol := color.RGBA{0x2a, 0x2a, 0x4a, 0x40}
-
-	for gx := vpX + ox; gx < vpX+vpW; gx += gs {
-		drawRect(screen, gx, vpY, 1, vpH, gridCol)
-	}
-	for gy := vpY + oy; gy < vpY+vpH; gy += gs {
-		drawRect(screen, vpX, gy, vpW, 1, gridCol)
+		if ch >= 32 && ch <= 126 {
+			op2 := *op
+			op2.GeoM.SetElement(0, 0, charW)
+			op2.GeoM.SetElement(0, 2, x+px)
+			op2.GeoM.SetElement(1, 1, charH)
+			op2.GeoM.SetElement(1, 2, y)
+			screen.DrawImage(whitePixel, &op2)
+		}
+		px += charW
 	}
 }
 
-func parseHexColor(hex string) color.RGBA {
+func parseHex(hex string) color.RGBA {
 	if len(hex) == 7 && hex[0] == '#' {
-		r := hexByte(hex[1])<<4 | hexByte(hex[2])
-		g := hexByte(hex[3])<<4 | hexByte(hex[4])
-		b := hexByte(hex[5])<<4 | hexByte(hex[6])
-		return color.RGBA{r, g, b, 255}
+		return color.RGBA{
+			hexVal(hex[1])<<4 | hexVal(hex[2]),
+			hexVal(hex[3])<<4 | hexVal(hex[4]),
+			hexVal(hex[5])<<4 | hexVal(hex[6]),
+			0xff,
+		}
 	}
 	return color.RGBA{}
 }
 
-func hexByte(c byte) uint8 {
+func hexVal(c byte) uint8 {
 	switch {
 	case c >= '0' && c <= '9': return c - '0'
 	case c >= 'a' && c <= 'f': return c - 'a' + 10
@@ -707,21 +989,17 @@ func hexByte(c byte) uint8 {
 func main() {
 	state := NewEditor()
 
-	// Load scene from command-line arg if provided
+	// Load scene from arg if provided
 	if len(os.Args) > 1 {
-		path := os.Args[1]
-		if err := state.Load(path); err != nil {
-			log.Fatalf("Failed to load scene %q: %v", path, err)
-		}
+		state.Load(os.Args[1])
 	}
 
-	ebiten.SetWindowTitle("Kora Editor")
+	ebiten.SetWindowTitle("Kora Editor — Go Native")
 	ebiten.SetWindowSize(1280, 720)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetWindowDecorated(true)
 
-	app := &EditorApp{state: state}
-	state.Log("Editor ready — Ctrl+N: new, Ctrl+S: save, F3: grid, 1-3: tools")
-	state.Log("Middle-click: pan, Scroll: zoom, Click to select, Drag to move")
+	app := &EditorApp{ed: state}
 
 	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal(err)
