@@ -73,6 +73,69 @@ const assetsPanel = new AssetsPanel({
   onLog: log,
 });
 
+// Code Panel
+let codePanel = null;
+window.__sceneEntities = () => state.entities.map(e => e.name);
+
+function initCodePanel() {
+  if (!window.CodePanel) { setTimeout(initCodePanel, 50); return; }
+  const container = document.getElementById('code-editor-container');
+  if (!container) return;
+  codePanel = new CodePanel(container, {
+    nameEl: document.getElementById('code-entity-name'),
+    errorBadgeEl: document.getElementById('code-error-badge'),
+    applyBtnEl: document.getElementById('code-apply-btn'),
+    onApply: (entityId, script) => {
+      const entity = state.entities.find(e => e.id === entityId);
+      if (entity) {
+        entity.script = script;
+        markDirty();
+        buildInspector(entity);
+        log(`Script salvo para: ${entity.name}`, 'ok');
+        showToast('Script aplicado');
+        // Basic validation
+        validateScript(script, entity);
+      }
+    },
+    onChange: (dirty) => {
+      if (dirty) state.dirty = true;
+    },
+  });
+  // If there's a current selection, load it
+  if (state.selected) {
+    const e = getEntity(state.selected);
+    if (e) codePanel.loadForEntity(e.id, e.name, e.script);
+  }
+}
+initCodePanel();
+
+function validateScript(script, entity) {
+  if (!script || !script.trim()) { codePanel?.clearErrors(); return; }
+  const errors = [];
+  const lines = script.split('\n');
+  let braceCount = 0;
+  let inString = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    for (let j = 0; j < line.length; j++) {
+      const ch = line[j];
+      if (ch === '"') inString = !inString;
+      if (!inString) {
+        if (ch === '{') braceCount++;
+        if (ch === '}') braceCount--;
+      }
+    }
+    if (braceCount < 0) {
+      errors.push({ line: i + 1, message: 'Chave de fechamento sem abertura correspondente' });
+      braceCount = 0;
+    }
+  }
+  if (braceCount > 0) {
+    errors.push({ line: lines.length, message: `${braceCount} chave(s) n\u00e3o fechada(s)` });
+  }
+  codePanel?.setErrors(errors);
+}
+
 // Canvas sizing
 function resizeCanvas() {
   const rect = canvas.parentElement.getBoundingClientRect();
@@ -260,8 +323,19 @@ function buildHierarchy(){
   }
   roots.forEach(e => createItem(e, 0));
 }
-function selectEntity(id){state.selected=id;buildHierarchy();buildInspector(getEntity(id));render();}
-function deselectAll(){state.selected=null;buildHierarchy();inspectorEl.innerHTML='<p class="inspector-empty">Selecione uma entidade</p>';render();}
+function selectEntity(id){
+  state.selected=id;
+  const e=getEntity(id);
+  buildHierarchy();buildInspector(e);render();
+  if(codePanel&&e) codePanel.loadForEntity(e.id,e.name,e.script);
+}
+function deselectAll(){
+  state.selected=null;
+  buildHierarchy();
+  inspectorEl.innerHTML='<p class="inspector-empty">Selecione uma entidade</p>';
+  render();
+  if(codePanel) codePanel.clearEntity();
+}
 function markDirty(){state.dirty=true;render();}
 function clearDirty(){state.dirty=false;render();}
 
@@ -294,7 +368,8 @@ function buildInspector(e){
     </div>
     <div class="inspector-section">
       <div class="inspector-section-title">Script KScript</div>
-      <textarea class="script-area" data-prop="script" placeholder="on Update(dt) {\n  // lógica aqui\n}">${e.script||''}</textarea>
+      <p style="font-size:11px;color:var(--color-text-muted);margin:0 0 4px">Editar na aba <strong>Script</strong></p>
+      <pre style="font-family:var(--font-code);font-size:10px;color:var(--color-text-faint);background:var(--color-bg);padding:6px;border-radius:var(--radius-sm);max-height:60px;overflow:hidden;white-space:pre-wrap;word-break:break-all">${(e.script||'').substring(0,120)}${(e.script||'').length>120?'…':''}</pre>
     </div>
     <div class="inspector-section">
       <div class="inspector-section-title">Ações</div>
@@ -450,7 +525,7 @@ document.getElementById('new-entity-name').addEventListener('keydown',ev=>{if(ev
 
 // Keyboard
 window.addEventListener('keydown',ev=>{
-  const inInput=ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA'||ev.target.tagName==='SELECT';
+  const inInput=ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA'||ev.target.tagName==='SELECT'||ev.target.closest('.cm-editor');
   if(ev.ctrlKey||ev.metaKey){
     if(ev.key==='s'){ev.preventDefault();actionSave();return;}
     if(ev.key==='o'){ev.preventDefault();actionOpen();return;}

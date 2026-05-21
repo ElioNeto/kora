@@ -8,6 +8,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "@codemirror/state": "https://esm.sh/@codemirror/state@6",
+    "@codemirror/view": "https://esm.sh/@codemirror/view@6",
+    "@codemirror/commands": "https://esm.sh/@codemirror/commands@6",
+    "@codemirror/language": "https://esm.sh/@codemirror/language@6",
+    "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6",
+    "@lezer/highlight": "https://esm.sh/@lezer/highlight@1"
+  }
+}
+</script>
 </head>
 <body>
 
@@ -75,9 +87,16 @@
       <div id="assets-container" class="assets-panel"></div>
     </div>
 
-    <!-- CODE (placeholder) -->
+    <!-- CODE -->
     <div id="tab-code" class="tab-pane" style="display:none">
-      <div style="padding:24px;color:var(--color-text-muted);font-size:13px">Editor KScript — em breve (#5)</div>
+      <div class="code-panel">
+        <div class="code-panel-header">
+          <span id="code-entity-name" class="code-entity-name">Nenhuma entidade selecionada</span>
+          <span id="code-error-badge" class="code-error-badge" hidden>!</span>
+          <button id="code-apply-btn" class="tb-btn">Aplicar (Ctrl+Enter)</button>
+        </div>
+        <div id="code-editor-container" class="code-editor-container"></div>
+      </div>
     </div>
 
   </main>
@@ -132,6 +151,7 @@
 <script src="preview-panel.js"></script>
 <script src="idb.js"></script>
 <script src="assets-panel.js"></script>
-<script src="editor.js"></script>
+<script type="module" src="code-panel.js"></script>
+<script defer src="editor.js"></script>
 </body>
 </html>
