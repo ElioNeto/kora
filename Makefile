@@ -62,16 +62,29 @@ test-editor:
 		echo "No editor tests found"; \
 	fi
 
-## apk: Build Android APK
+## apk: Build Android APK (debug)
 apk:
 	@if [ ! -f "android/build.sh" ]; then \
 		echo "Error: android/build.sh not found"; \
 		exit 1; \
 	fi
-	cd android && ./build.sh release
+	./build.sh debug
+
+## apk-release: Build signed Android APK for release
+apk-release:
+	@if [ ! -f "android/build.sh" ]; then \
+		echo "Error: android/build.sh not found"; \
+		exit 1; \
+	fi
+	./build.sh release
+
+## android-setup: One-time Android dev environment setup
+android-setup:
+	cd android && bash setup.sh
 
 ## build: Build all artifacts
-build: compiler apk
+build: compiler
+	@echo "Build complete. Use 'make apk' for Android APK."
 
 ## dist: Create distribution package
 dist:
