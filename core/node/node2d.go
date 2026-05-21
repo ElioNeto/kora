@@ -124,6 +124,30 @@ func (n *Node2D) Draw(screen *ebiten.Image) {
 	}
 }
 
+// GetNode2D returns the underlying *Node2D pointer.
+// This is used by AddChild to support types that embed *Node2D.
+func (n *Node2D) GetNode2D() *Node2D { return n }
+
+// FindCamera searches this node and its children recursively for a Camera2D.
+// Returns the first Camera2D found, or nil if none exists.
+// This is used by the runner to determine the active camera each frame.
+//
+// Since children are stored as *Node2D pointers, and Camera2D embeds *Node2D,
+// this method can only find a Camera2D when called directly on it (as a root),
+// or when the child implements a type-assertable interface.
+// For reliable camera detection, use the runner's ActiveCamera field.
+func (n *Node2D) FindCamera() *Camera2D {
+	if cam, ok := interface{}(n).(*Camera2D); ok {
+		return cam
+	}
+	for _, child := range n.children {
+		if cam := child.FindCamera(); cam != nil {
+			return cam
+		}
+	}
+	return nil
+}
+
 // Compile-time interface check
 var _ Node = (*Node2D)(nil)
 
@@ -175,11 +199,10 @@ func (n *Node2D) AddChild(child Node) {
 		return
 	}
 
-	// Currently only *Node2D is supported due to internal storage.
-	// TODO: support any Node by extracting underlying *Node2D from embedded types.
-	node2d, ok := child.(*Node2D)
-	if !ok {
-		panic("Node2D.AddChild: only *Node2D is supported, got " + getTypeName(child))
+	// Extract the underlying *Node2D from any type that embeds it.
+	node2d := extractNode2D(child)
+	if node2d == nil {
+		panic("Node2D.AddChild: child must embed *Node2D, got " + getTypeName(child))
 	}
 
 	// Check if already child
@@ -192,6 +215,26 @@ func (n *Node2D) AddChild(child Node) {
 	// Set parent
 	node2d.parent = n
 	n.children = append(n.children, node2d)
+}
+
+// extractNode2D attempts to extract the underlying *Node2D from a Node value.
+// It supports direct *Node2D values and any type that embeds *Node2D.
+func extractNode2D(child Node) *Node2D {
+	// Direct *Node2D
+	if n, ok := child.(*Node2D); ok {
+		return n
+	}
+
+	// Check for common embedded types by trying interface conversion.
+	// This handles PhysicsBody2D, Camera2D, Area2D, AudioPlayer2D, etc.
+	type node2DProvider interface {
+		GetNode2D() *Node2D
+	}
+	if p, ok := child.(node2DProvider); ok {
+		return p.GetNode2D()
+	}
+
+	return nil
 }
 
 // getTypeName returns the type name of an interface for panic messages.

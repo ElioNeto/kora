@@ -137,12 +137,39 @@ func (g *Game) Update() error {
 	return nil
 }
 
+// syncCamera finds the active Camera2D node (set via SceneManager.SetActiveCamera)
+// and applies its transform to the renderer's camera. If no Camera2D is active,
+// the renderer camera is reset to identity (centered at origin, zoom=1).
+func (g *Game) syncCamera() {
+	camNode := g.sceneManager.ActiveCamera()
+	if camNode == nil {
+		// No active Camera2D -> reset to defaults
+		g.renderer.Camera = render.NewCamera(float64(g.cfg.Width), float64(g.cfg.Height))
+		return
+	}
+
+	// Set viewport on the camera node (ensures WorldToScreen works)
+	camNode.SetViewport(float64(g.cfg.Width), float64(g.cfg.Height))
+
+	// Sync node Camera2D -> render.Camera
+	pos := camNode.GetWorldPosition()
+	g.renderer.Camera.X = float64(pos.X) + float64(camNode.GetShakeOffset().X)
+	g.renderer.Camera.Y = float64(pos.Y) + float64(camNode.GetShakeOffset().Y)
+	g.renderer.Camera.Zoom = camNode.Zoom
+	g.renderer.Camera.W = float64(g.cfg.Width)
+	g.renderer.Camera.H = float64(g.cfg.Height)
+}
+
 // Draw is called by Ebitengine every frame (vsync).
 func (g *Game) Draw(screen *ebiten.Image) {
 	if g.renderer == nil {
 		g.renderer = render.NewRenderer()
 	}
 	g.renderer.SetScreen(screen)
+
+	// Sync active camera before rendering.
+	g.syncCamera()
+
 	g.renderer.Clear(g.cfg.ClearColor)
 
 	// Delegate to SceneManager

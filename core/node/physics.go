@@ -2,8 +2,9 @@ package node
 
 import (
 	stdMath "math"
-	
+
 	"github.com/ElioNeto/kora/core/math"
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // PhysicsBody2D is a node that wraps core/physics types.
@@ -364,6 +365,9 @@ func (a *Area2D) ClearOverlaps() {
 type Camera2D struct {
 	*Node2D
 
+	// Zoom level (1.0 = normal)
+	Zoom float64
+
 	// Target to follow
 	target       *Node2D
 	targetOffset math.Vector2
@@ -382,14 +386,21 @@ type Camera2D struct {
 	shakeDuration  float64
 	shakeElapsed   float64
 	shakeOffset    math.Vector2
+	
+	// Viewport size (set by runner)
+	viewportW float64
+	viewportH float64
 }
 
 // NewCamera2D creates a new Camera2D
 func NewCamera2D(name string) *Camera2D {
 	return &Camera2D{
 		Node2D:          NewNode2D(name, 0),
+		Zoom:            1.0,
 		smoothingFactor: 0.1,
 		lerpMode:        true,
+		viewportW:       360,
+		viewportH:       640,
 	}
 }
 
@@ -529,6 +540,74 @@ func (c *Camera2D) Shake(amount float32, duration float64) {
 	c.shakeDuration = duration
 	c.shakeElapsed = 0
 	c.shakeOffset = math.Vector2{}
+}
+
+// ---------------------------------------------------------------------------
+// Camera transformation API
+// ---------------------------------------------------------------------------
+
+// SetViewport sets the logical viewport dimensions (screen size).
+// Called by the runner during initialization.
+func (c *Camera2D) SetViewport(w, h float64) {
+	c.viewportW = w
+	c.viewportH = h
+}
+
+// GetViewport returns the current viewport dimensions.
+func (c *Camera2D) GetViewport() (float64, float64) {
+	return c.viewportW, c.viewportH
+}
+
+// GetTransform returns the camera's view transformation matrix (world-to-screen).
+// Apply this to ebiten.DrawImageOptions.GeoM before drawing game objects.
+//
+// The matrix:
+//  1. Translates so the camera centre is at (0,0)
+//  2. Scales by zoom
+//  3. Translates to screen centre
+//  4. Applies shake offset
+func (c *Camera2D) GetTransform() ebiten.GeoM {
+	var m ebiten.GeoM
+
+	pos := c.GetWorldPosition()
+	shakeOffset := c.GetShakeOffset()
+
+	// 1. Translate world so camera centre is at origin
+	m.Translate(float64(-pos.X-shakeOffset.X), float64(-pos.Y-shakeOffset.Y))
+
+	// 2. Scale by zoom
+	if c.Zoom != 0 {
+		m.Scale(c.Zoom, c.Zoom)
+	}
+
+	// 3. Translate to screen centre
+	m.Translate(c.viewportW/2, c.viewportH/2)
+
+	return m
+}
+
+// GetShakeOffset returns the current shake offset vector.
+func (c *Camera2D) GetShakeOffset() math.Vector2 {
+	return c.shakeOffset
+}
+
+// WorldToScreen converts a world-space coordinate to screen-space pixel position.
+func (c *Camera2D) WorldToScreen(wx, wy float64) (float64, float64) {
+	m := c.GetTransform()
+	sx, sy := m.Apply(wx, wy)
+	return sx, sy
+}
+
+// ScreenToWorld converts a screen-space pixel position to world-space coordinate.
+func (c *Camera2D) ScreenToWorld(sx, sy float64) (float64, float64) {
+	m := c.GetTransform()
+	if m.IsInvertible() {
+		m.Invert()
+		wx, wy := m.Apply(sx, sy)
+		return wx, wy
+	}
+	// If matrix is not invertible (e.g. zoom=0), return origin
+	return 0, 0
 }
 
 // AudioPlayer2D plays audio

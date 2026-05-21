@@ -16,6 +16,7 @@ type SceneManager struct {
 	pendingPath    string // path for deferred loading
 	additiveScenes []*node.Node2D
 	sceneDir       string
+	activeCamera   *node.Camera2D // set externally by the scene factory
 }
 
 func NewSceneManager(sceneDir string) *SceneManager {
@@ -77,6 +78,18 @@ func (sm *SceneManager) Update(dt float64) {
 
 func (sm *SceneManager) CurrentScene() *node.Node2D {
 	return sm.currentScene
+}
+
+// SetActiveCamera sets the active Camera2D node used for rendering.
+// The runner uses this to sync the camera transform each frame.
+// Call this during scene initialization (SceneFactory).
+func (sm *SceneManager) SetActiveCamera(cam *node.Camera2D) {
+	sm.activeCamera = cam
+}
+
+// ActiveCamera returns the currently active Camera2D, or nil if none.
+func (sm *SceneManager) ActiveCamera() *node.Camera2D {
+	return sm.activeCamera
 }
 
 func (sm *SceneManager) Draw(r *render.Renderer) {

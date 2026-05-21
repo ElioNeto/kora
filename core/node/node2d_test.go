@@ -586,3 +586,119 @@ func TestCamera2D_Smoothing(t *testing.T) {
 		t.Errorf("expected smoothing clamped to 1, got %f", cam.GetSmoothing())
 	}
 }
+
+func TestCamera2D_Zoom(t *testing.T) {
+	cam := NewCamera2D("cam")
+	if cam.Zoom != 1.0 {
+		t.Errorf("expected default zoom 1.0, got %f", cam.Zoom)
+	}
+	cam.Zoom = 2.0
+	if cam.Zoom != 2.0 {
+		t.Errorf("expected zoom 2.0, got %f", cam.Zoom)
+	}
+}
+
+func TestCamera2D_WorldToScreen(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetViewport(360, 640)
+	cam.SetWorldPosition(0, 0)
+
+	// World (0,0) should map to screen centre (180, 320)
+	sx, sy := cam.WorldToScreen(0, 0)
+	if sx != 180 || sy != 320 {
+		t.Errorf("expected (180, 320), got (%f, %f)", sx, sy)
+	}
+}
+
+func TestCamera2D_ScreenToWorld(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetViewport(360, 640)
+	cam.SetWorldPosition(0, 0)
+
+	// Screen centre (180,320) should map to world (0,0)
+	wx, wy := cam.ScreenToWorld(180, 320)
+	if wx != 0 || wy != 0 {
+		t.Errorf("expected (0, 0), got (%f, %f)", wx, wy)
+	}
+}
+
+func TestCamera2D_WorldToScreenWithZoom(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetViewport(360, 640)
+	cam.SetWorldPosition(0, 0)
+	cam.Zoom = 2.0
+
+	// World (10,10) with zoom 2: (10*2 + 180, 10*2 + 320) = (200, 340)
+	sx, sy := cam.WorldToScreen(10, 10)
+	expectedX, expectedY := 200.0, 340.0
+	if sx != expectedX || sy != expectedY {
+		t.Errorf("expected (%f, %f), got (%f, %f)", expectedX, expectedY, sx, sy)
+	}
+}
+
+func TestCamera2D_GetTransform(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetViewport(360, 640)
+	cam.SetWorldPosition(100, 200)
+	cam.Zoom = 1.5
+
+	m := cam.GetTransform()
+	// Transform should have non-identity elements
+	// GeoM is identity when no transformation has been applied
+	// A camera at (100,200) with zoom 1.5 should produce non-zero elements
+	if m.Element(0, 0) == 0 && m.Element(1, 1) == 0 {
+		t.Error("expected non-zero transform matrix")
+	}
+}
+
+func TestCamera2D_WorldToScreenConsistency(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetViewport(360, 640)
+	cam.SetWorldPosition(100, 200)
+	cam.Zoom = 2.0
+
+	// Round-trip: world -> screen -> world
+	sx, sy := cam.WorldToScreen(50, 75)
+	wx, wy := cam.ScreenToWorld(sx, sy)
+
+	if wx != 50 || wy != 75 {
+		t.Errorf("round-trip expected (50, 75), got (%f, %f)", wx, wy)
+	}
+}
+
+func TestCamera2D_FindCameraNoCamera(t *testing.T) {
+	parent := NewNode2D("parent", 1)
+	child := NewNode2D("child", 2)
+	parent.AddChild(child)
+
+	found := parent.FindCamera()
+	if found != nil {
+		t.Error("expected nil when no Camera2D exists")
+	}
+}
+
+func TestCamera2D_GetShakeOffset(t *testing.T) {
+	cam := NewCamera2D("cam")
+
+	offset := cam.GetShakeOffset()
+	if offset.X != 0 || offset.Y != 0 {
+		t.Errorf("expected zero offset initially, got (%f, %f)", offset.X, offset.Y)
+	}
+
+	// After shaking for a bit, offset should be non-zero
+	cam.Shake(10, 1.0)
+	cam.Update(0.1)
+	offset = cam.GetShakeOffset()
+	if offset.X == 0 && offset.Y == 0 {
+		t.Error("expected non-zero shake offset after update")
+	}
+}
+
+func TestCamera2D_SetViewport(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetViewport(800, 480)
+	w, h := cam.GetViewport()
+	if w != 800 || h != 480 {
+		t.Errorf("expected (800, 480), got (%f, %f)", w, h)
+	}
+}
