@@ -79,3 +79,14 @@ coverage/
 
 # Claude Code — sessões temporárias de chat
 /.claude/sessions/
+
+# AI/IDE tooling configs (not project code)
+.opencode/
+.teamcode/
+
+# Deprecated web editor (kept locally for reference only)
+editor/
+
+# Generated lockfiles
+package-lock.json
+yarn.lock
