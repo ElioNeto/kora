@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"github.com/ElioNeto/kora/core/autoload"
 	"github.com/ElioNeto/kora/core/node"
 )
 
@@ -51,3 +52,26 @@ func SceneTreeChangeScene(name string) {
 	}
 	kscriptTree.ChangeScene(name)
 }
+
+// ----------------------------------------------------------------------------
+// AutoLoad API (KScript bridge)
+// ----------------------------------------------------------------------------
+
+// AutoLoadSet registers an AutoLoad singleton globally (KScript: AutoLoad.set).
+// name is the global identifier; obj is the singleton instance.
+func AutoLoadSet(name string, obj interface{}) {
+	// The KScript compiler emits structs that implement autoload.AutoLoad;
+	// this bridge provides a registration entry point from scripts.
+	if a, ok := obj.(autoload.AutoLoad); ok {
+		autoload.Set(a)
+	}
+}
+
+// AutoLoadGet returns a registered AutoLoad by name (KScript: AutoLoad.get).
+// Returns nil if not found.
+func AutoLoadGet(name string) interface{} {
+	return autoload.Get(name)
+}
+
+// init ensures the autoload package is imported.
+var _ = autoload.Len

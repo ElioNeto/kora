@@ -14,6 +14,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/ElioNeto/kora/core/autoload"
 	"github.com/ElioNeto/kora/core/input"
 	"github.com/ElioNeto/kora/core/render"
 	"github.com/ElioNeto/kora/core/scene"
@@ -127,6 +128,9 @@ func (g *Game) Update() error {
 
 	// Input must be sampled first.
 	input.Update()
+
+	// Update persistent AutoLoad singletons before scene logic.
+	autoload.UpdateAll(dt)
 
 	// Delegate to SceneManager
 	g.sceneManager.Update(dt)
