@@ -34,6 +34,7 @@ type PhysicsWorld struct {
 	bodies      []*RigidBody
 	areas       []*Area2D
 	tileQ       TileQuery
+	spatial     *SpatialHash // broad-phase spatial hash (cellSize = 64)
 }
 
 // NewWorld creates a PhysicsWorld with standard gravity (0, 980).
@@ -44,6 +45,7 @@ func NewWorld(tileQuery TileQuery) *PhysicsWorld {
 		bodies:  make([]*RigidBody, 0),
 		areas:   make([]*Area2D, 0),
 		tileQ:   tileQuery,
+		spatial: NewSpatialHash(64),
 	}
 }
 
@@ -199,10 +201,26 @@ func (w *PhysicsWorld) stepFixed(dt float32) {
 		b.Pos.Y += b.Vel.Y * dt
 	}
 
-	// Body-body collision (O(n²) — fine for small entity counts)
-	for i := 0; i < len(w.bodies); i++ {
-		for j := i + 1; j < len(w.bodies); j++ {
-			a := w.bodies[i]
+	// Broad-phase spatial hash (amortised O(n))
+	w.spatial.Clear()
+	for _, b := range w.bodies {
+		w.spatial.Insert(b.EntityID, b)
+	}
+
+	// Build entity ID → index lookup for duplicate-pair avoidance
+	idToIdx := make(map[int]int, len(w.bodies))
+	for i, b := range w.bodies {
+		idToIdx[b.EntityID] = i
+	}
+
+	// Narrow-phase collision using candidate pairs from spatial hash
+	for i, a := range w.bodies {
+		candidates := w.spatial.GetCandidates(a.EntityID, a)
+		for _, cid := range candidates {
+			j, ok := idToIdx[cid]
+			if !ok || j <= i {
+				continue
+			}
 			b := w.bodies[j]
 
 			// Skip if layers don't match masks

@@ -2,6 +2,8 @@ package node
 
 import (
 	stdMath "math"
+
+	kmath "github.com/ElioNeto/kora/core/math"
 )
 
 // ---------------------------------------------------------------------------
@@ -9,61 +11,24 @@ import (
 // ---------------------------------------------------------------------------
 
 // EasingFunc maps t ∈ [0,1] → eased value ∈ [0,1].
-type EasingFunc func(t float64) float64
+type EasingFunc = kmath.EasingFn
 
+// Easing presets — delegates to the full set in kmath.
 var (
-	EaseLinear    EasingFunc = func(t float64) float64 { return t }
-	EaseIn        EasingFunc = func(t float64) float64 { return t * t }
-	EaseOut       EasingFunc = func(t float64) float64 { return t * (2 - t) }
-	EaseInOut     EasingFunc = func(t float64) float64 {
-		if t < 0.5 {
-			return 2 * t * t
-		}
-		return -1 + (4-2*t)*t
-	}
-	EaseElasticOut EasingFunc = func(t float64) float64 {
-		if t == 0 || t == 1 {
-			return t
-		}
-		return stdMath.Pow(2, -10*t)*stdMath.Sin((t*10-0.75)*(2*stdMath.Pi/3)) + 1
-	}
-	EaseBounceOut EasingFunc = func(t float64) float64 {
-		switch {
-		case t < 1/2.75:
-			return 7.5625 * t * t
-		case t < 2/2.75:
-			t -= 1.5 / 2.75
-			return 7.5625*t*t + 0.75
-		case t < 2.5/2.75:
-			t -= 2.25 / 2.75
-			return 7.5625*t*t + 0.9375
-		default:
-			t -= 2.625 / 2.75
-			return 7.5625*t*t + 0.984375
-		}
-	}
+	EaseLinear     EasingFunc = kmath.Linear
+	EaseIn         EasingFunc = kmath.InQuad
+	EaseOut        EasingFunc = kmath.OutQuad
+	EaseInOut      EasingFunc = kmath.InOutQuad
+	EaseElasticOut EasingFunc = kmath.OutElastic
+	EaseBounceOut  EasingFunc = kmath.OutBounce
 )
 
 // EasingByName returns the easing function for a given name.
-// Supported: "linear", "ease_in", "ease_out", "ease_in_out", "elastic_out", "bounce_out".
+// Supports all names from kmath.EasingByName plus legacy names:
+// "linear", "ease_in", "ease_out", "ease_in_out", "elastic_out", "bounce_out".
 // Defaults to EaseLinear if the name is not recognised.
 func EasingByName(name string) EasingFunc {
-	switch name {
-	case "linear":
-		return EaseLinear
-	case "ease_in":
-		return EaseIn
-	case "ease_out":
-		return EaseOut
-	case "ease_in_out":
-		return EaseInOut
-	case "elastic_out":
-		return EaseElasticOut
-	case "bounce_out":
-		return EaseBounceOut
-	default:
-		return EaseLinear
-	}
+	return kmath.EasingByName(name)
 }
 
 // ---------------------------------------------------------------------------
