@@ -1,5 +1,10 @@
 # Kora Engine
 
+[![CI](https://github.com/ElioNeto/kora/actions/workflows/ci.yml/badge.svg)](https://github.com/ElioNeto/kora/actions/workflows/ci.yml)
+[![Android Build](https://github.com/ElioNeto/kora/actions/workflows/android.yml/badge.svg)](https://github.com/ElioNeto/kora/actions/workflows/android.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ElioNeto/kora)](https://goreportcard.com/report/github.com/ElioNeto/kora)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > Engine de jogos 2D para Android com editor visual desktop e linguagem KScript compilada para Go.
 
 ## 🎮 O que é Kora?
