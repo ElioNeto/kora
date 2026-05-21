@@ -42,8 +42,16 @@ desktop:
 compiler:
 	cd compiler && go build -o ../bin/kora-compiler .
 
-## run: Run the hello example (interactive player demo)
+## run: Open the Kora Editor visual (Go-native, Godot-style)
 run:
+	go run ./cmd/kora-editor
+
+## editor: Open the Kora Editor with a specific scene file
+editor:
+	go run ./cmd/kora-editor $(FILE)
+
+## run-example: Run the hello example (interactive player demo)
+run-example:
 	go run ./examples/hello
 
 ## run-dev: Run the engine entry point with debug overlay
