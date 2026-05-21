@@ -1,146 +1,170 @@
 # Kora Engine
 
 [![CI](https://github.com/ElioNeto/kora/actions/workflows/ci.yml/badge.svg)](https://github.com/ElioNeto/kora/actions/workflows/ci.yml)
-[![Android Build](https://github.com/ElioNeto/kora/actions/workflows/android.yml/badge.svg)](https://github.com/ElioNeto/kora/actions/workflows/android.yml)
+[![Desktop Build](https://github.com/ElioNeto/kora/actions/workflows/desktop.yml/badge.svg)](https://github.com/ElioNeto/kora/actions/workflows/desktop.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ElioNeto/kora)](https://goreportcard.com/report/github.com/ElioNeto/kora)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Engine de jogos 2D para Android com editor visual e linguagem KScript compilada para Go.
+> Motor de jogos 2D para desktop com runtime Go, linguagem KScript compilada e ferramentas CLI nativas.
+
+---
 
 ## 🎮 O que é Kora?
 
-Kora Engine é uma engine de jogos 2D projetada para criar jogos nativos para Android. Componentes principais:
+**Kora Engine** é um motor de jogos 2D focado em desktop (Windows, macOS, Linux) que combina três pilares:
 
-- **Editor Web** — Crie cenas visualmente com arrastar e soltar, hierarquia de entidades, inspetor de propriedades e editor de código KScript
-- **KScript** — Linguagem própria compilada para Go (sem VM, zero overhead)
-- **Runtime Go** — Performance nativa ARM64 via gomobile no Android
+- **KScript** — Linguagem própria com sintaxe TypeScript, compilada diretamente para Go. Sem VM, sem runtime overhead, performance nativa.
+- **Runtime Go** — Construído sobre Ebitengine, entregando renderização 2D acelerada, áudio multicanal, física AABB com CCD, pathfinding A\*, iluminação dinâmica, partículas, animação por keyframes, sistema de UI e muito mais.
+- **Ferramentas CLI** — Compilador, executor e empacotador escritos em Go. Sem dependência de navegador, sem servidor web, sem JavaScript.
 
 ### Principais Características
 
-- ✅ **Editor Visual** — Hierarquia, viewport, inspetor, grid snapping, multi-seleção
-- ✅ **Assets Import** — PNG, JPG, OGG, WAV com persistência IndexedDB
-- ✅ **KScript** — TypeScript-like, async/await, tipagem estática, signals
-- ✅ **Física 2D** — AABB, gravidade, raycas, áreas, CharacterBody2D, CCD, joints, spatial hash
+- ✅ **KScript compilado para Go** — Performance nativa sem VM ou interpretador
+- ✅ **Física 2D completa** — AABB, CCD, joints, raycast, CharacterBody2D, spatial hash
 - ✅ **Renderização** — Sprites, spritesheets, tilemaps, frustum culling, câmera follow+zoom+shake
-- ✅ **Áudio** — OGG/WAV/MP3, mixer multi-bus, som espacial, pitch, pan
+- ✅ **Áudio** — OGG/WAV/MP3, mixer multi-bus, som espacial 2D, pitch, pan
 - ✅ **Animação** — Keyframe AnimationPlayer, cutscene sequencer, 28 funções de easing
-- ✅ **Sistema de Partículas** — CPU-based com emissão contínua/burst, gravidade, blend modes
+- ✅ **Partículas** — CPU-based com emissão contínua/burst, gravidade, blend modes
 - ✅ **Iluminação 2D** — PointLight2D, DirectionalLight2D, sombras dinâmicas
-- ✅ **Pathfinding** — A* com grid navigation, smoothing, obstacles dinâmicos
+- ✅ **Pathfinding** — A\* com grid navigation, path smoothing, obstacles dinâmicos
 - ✅ **Skeleton2D** — Hierarquia de ossos com CCD IK solver
 - ✅ **Parallax** — Múltiplas camadas com scroll independente
-- ✅ **UI** — Label, Button, Panel (usando bitmap font integrada)
+- ✅ **UI** — Label, Button, Panel (bitmap font integrada)
+- ✅ **Shader** — Kage (ESSL), ShaderManager, ShaderNode
 - ✅ **Debugger** — Overlay com FPS, entidades, tasks, árvore de nós
-- ✅ **Shaders** — Kage (ESSL), ShaderManager, ShaderNode
 - ✅ **Prefabs** — Templates reutilizáveis com deep copy
 - ✅ **Object Pool** — Pool genérico thread-safe para redução de GC
 - ✅ **Asset Manager** — Carregamento síncrono/assíncrono com ref counting
-- ✅ **Canvas/Inspector** — z-index, collapsible sections, tags, Ctrl+Enter apply
-- ✅ **Git Panel** — Status, stage, unstage, commit, diff, histórico
-- ✅ **APK Nativo** — Build para Android com runtime Go via gomobile
+- ✅ **CLI tools** — `kora-run`, `kora-build`, `kora-android`
+- ✅ **Exportação desktop** — Binário nativo para Windows, macOS e Linux
+- ✅ **Exportação mobile** — APK/AAB Android via gomobile
 - ✅ **Benchmarks** — 30+ benchmarks nos sistemas críticos
+
+---
 
 ## 🏗️ Arquitetura
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│               Editor Web (HTML5/JS)                          │
-│  Cena · Preview · Assets · Script (CodeMirror 6) · Git      │
-│  Hierarquia · Inspetor · Serializer · Grid Snap · Multi-sel │
-└──────────────────────┬───────────────────────────────────────┘
-                       │ .kora.json / .kora.prefab
-                       ▼
-┌──────────────────────────────────────────────────────────────┐
-│          KScript Compiler (Go)                                │
-│  Lexer → Parser → Type Checker → Async Transform → Emitter   │
-│  (Gera structs Go com Entity interface + state machines)     │
-└──────────────────────┬───────────────────────────────────────┘
-                       │ Código Go gerado (+ runtime linkado)
-                       ▼
-┌──────────────────────────────────────────────────────────────┐
-│               Kora Runtime (Go + Ebitengine v2.7)             │
-│                                                              │
-│  ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌─────────────────┐   │
-│  │ Render  │ │ Physics  │ │  Audio  │ │     Input       │   │
-│  │ Sprites │ │ AABB     │ │ OGG/WAV │ │  Keyboard/Touch │   │
-│  │ Tilemap │ │ CCD      │ │ Mixer   │ │  Virtual Pad    │   │
-│  │ Font    │ │ Joints   │ │ Spatial │ │  Gesture (P2)   │   │
-│  │ Camera  │ │ Spatial  │ │         │ │  Gamepad (P2)   │   │
-│  │ Shaders │ │ Raycast  │ │         │ │                 │   │
-│  │ Culling │ │ Character│ │         │ │                 │   │
-│  └─────────┘ └──────────┘ └─────────┘ └─────────────────┘   │
-│                                                              │
-│  ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌─────────────────┐   │
-│  │ Scene   │ │  Node2D  │ │  Async  │ │    Extras       │   │
-│  │ Entity  │ │ Camera2D │ │  Tasks  │ │ Particles2D     │   │
-│  │ Manager │ │ Sprite2D │ │  Tweens │ │ Skeleton2D      │   │
-│  │ Loader  │ │PhysicsBd │ │  Sched  │ │ Light2D         │   │
-│  │ Prefab  │ │ AudioPl2 │ │  Pool   │ │ Parallax        │   │
-│  │ AutoLoad│ │Animation │ │  Easing │ │ Cutscene        │   │
-│  │ Tree    │ │ UI (Lbl) │ │         │ │ DebugConsole    │   │
-│  └─────────┘ └──────────┘ └─────────┘ └─────────────────┘   │
-│                                                              │
-│  ┌─────────┐ ┌──────────┐ ┌─────────┐                       │
-│  │ Asset   │ │ Nav      │ │  Pool   │                       │
-│  │Manager  │ │ A*       │ │  Generic│                       │
-│  │ Loaders │ │Region2D  │ │ Thread  │                       │
-│  │RefCount │ │Agent2D   │ │  Safe   │                       │
-│  └─────────┘ └──────────┘ └─────────┘                       │
-└──────────────────────┬───────────────────────────────────────┘
-                       │ gomobile build
-                       ▼
-               Android APK/AAB (ARM64)
+┌──────────────────────────────────────────┐
+│     Ferramentas CLI (Go)                 │
+│  kora-run · kora-build · kora-android    │
+└────────────┬─────────────────────────────┘
+             │ .ks → AST
+             ▼
+┌──────────────────────────────────────────┐
+│     Compilador KScript (Go)              │
+│  Lexer → Parser → Checker → Emitter      │
+│  (Gera structs Go + interface Entity)    │
+└────────────┬─────────────────────────────┘
+             │ Código Go gerado
+             ▼
+┌──────────────────────────────────────────┐
+│     Runtime Kora (Go + Ebitengine)       │
+│                                          │
+│  ┌─────────┐ ┌──────────┐ ┌─────────┐   │
+│  │ Render  │ │ Physics  │ │  Audio  │   │
+│  │ Sprites │ │ AABB/CCD │ │ Mixer   │   │
+│  │ Tilemap │ │ Joints   │ │ Spatial │   │
+│  │ Camera  │ │ Raycast  │ │ OGG/WAV │   │
+│  │ Shaders │ │ CharBody │ │ MP3     │   │
+│  │ Culling │ │ Spatial  │ │         │   │
+│  └─────────┘ └──────────┘ └─────────┘   │
+│                                          │
+│  ┌─────────┐ ┌──────────┐ ┌─────────┐   │
+│  │ Scene   │ │  Node2D  │ │  Async  │   │
+│  │ Manager │ │ Sprite2D │ │  Tasks  │   │
+│  │ Loader  │ │ Camera2D │ │  Tween  │   │
+│  │ Prefab  │ │PhysicsBd │ │  Sched  │   │
+│  │ AutoLoad│ │ AudioPl2 │ │  Pool   │   │
+│  │ Tree    │ │Animation │ │  Easing │   │
+│  │ Entity  │ │ UI       │ │         │   │
+│  └─────────┘ └──────────┘ └─────────┘   │
+│                                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│  │ Particles│ │ Light2D  │ │Skeleton2D│ │
+│  │ Parallax │ │ Cutscene │ │ Nav A*   │ │
+│  │ Shader   │ │ Debug    │ │ Pool     │ │
+│  └──────────┘ └──────────┘ └──────────┘ │
+└────────────┬─────────────────────────────┘
+             │ go build / gomobile
+             ▼
+┌──────────────────────────────────────────┐
+│   Binário Desktop (Win/Mac/Linux)        │
+│   APK/AAB Android (via gomobile)         │
+└──────────────────────────────────────────┘
 ```
+
+---
 
 ## 🚀 Quickstart
 
 ### Pré-requisitos
 
-- **Go 1.22+** (compiler + runtime)
-- **Android SDK** (apenas para build APK)
+- **Go 1.22+**
+- **Ebitengine** — gerenciado automaticamente via `go.mod`
 
-### Editor Web (Rápido)
-
-```bash
-cd editor
-python3 -m http.server 8080
-# Acesse: http://localhost:8080
-```
-
-### Workflow Básico
+### Executar um jogo
 
 ```bash
-# 1. Inicie o editor web
-cd editor && python3 -m http.server 8080
+# Compilar e executar um arquivo KScript
+go run cmd/kora-run/main.go examples/hello/game.ks
 
-# 2. Crie cenas visualmente no editor
-# 3. Adicione KScript nos objetos
-# 4. Salve: Ctrl+S (.kora.json)
-
-# 5. Compile o KScript
-go run cmd/kora-run/main.go game.ks
-
-# 6. Build APK
-./build.sh debug
-
-# 7. Instale no dispositivo
-adb install build/android/kora-debug.apk
+# Ou usando o atalho do Makefile
+make run
 ```
+
+### Compilar um binário desktop
+
+```bash
+# Gerar binário nativo para a plataforma atual
+go build -o kora-game cmd/kora-run/main.go
+
+# Para Windows (cross-compile)
+GOOS=windows GOARCH=amd64 go build -o kora-game.exe cmd/kora-run/main.go
+```
+
+### Pipeline completa de um projeto
+
+```bash
+# 1. Crie seu jogo em KScript (.ks)
+# 2. Compile e execute
+kora-run game.ks
+
+# 3. Exporte para desktop
+kora-build --target desktop game.ks
+
+# 4. Exporte para Android (opcional)
+kora-android build game.ks
+```
+
+### Testes
+
+```bash
+# Executar todos os testes
+make test
+
+# Benchmarks nos sistemas críticos
+go test -bench=. ./core/physics/... ./core/navigation/... ./core/scene/...
+```
+
+---
 
 ## 📖 Documentação
 
 | Documentação | Descrição |
-|--------------|-----------|
-| [KScript Guide](docs/SCRIPT.md) | Linguagem completa com exemplos |
-| [API Reference](docs/API_REFERENCE.md) | Referências de todas APIs |
-| [Editor Guide](docs/EDITOR_GUIDE.md) | Guia do editor visual |
-| [Assets Guide](docs/ASSETS_GUIDE.md) | Importação e gerenciamento |
-| [Architecture](docs/ARCHITECTURE.md) | Arquitetura do sistema |
-| [Contributing](docs/CONTRIBUTING.md) | Como contribuir |
+|---|---|
+| [Guia KScript](docs/SCRIPT.md) | Linguagem completa com exemplos |
+| [Referência de API](docs/API_REFERENCE.md) | Todas as APIs do runtime |
+| [Guia de Assets](docs/ASSETS_GUIDE.md) | Importação e gerenciamento |
+| [Arquitetura](docs/ARCHITECTURE.md) | Visão detalhada do sistema |
+| [Guia Desktop](docs/DESKTOP_APP.md) | Exportação para desktop |
+| [Contribuição](docs/CONTRIBUTING.md) | Como contribuir |
 
-## 🎓 KScript - Linguagem
+---
 
-KScript é uma linguagem tipo TypeScript, compilada para Go. Zero runtime overhead.
+## 🎓 KScript — A Linguagem
+
+KScript é uma linguagem com sintaxe similar a TypeScript, compilada estaticamente para Go. Zero overhead em runtime — seu código vira structs e funções Go compiladas nativamente.
 
 ### Exemplo
 
@@ -172,161 +196,153 @@ object Player {
 }
 ```
 
+### Diferenciais do KScript
+
+- **Tipagem estática** com inferência
+- **Async/await** nativo — sem goroutines expostas
+- **Signals** — sistema de eventos desacoplado
+- **Compilação direta para Go** — sem VM, sem runtime extra
+- **Acesso completo à runtime** — física, áudio, input, nós
+
+---
+
 ## 🛠️ Build & Development
 
 ```bash
-# Run editor web
-make dev
-
-# Build compiler
+# Compilar o compilador KScript
 make compiler
 
-# Run example
+# Executar um jogo de exemplo
 make run
 
-# Build APK (debug)
+# Exportar para desktop
+make build
+
+# Exportar Android APK
 make apk
 
-# Testes
+# Executar testes
 make test
 
 # Benchmarks
-go test -bench=. ./core/physics/... ./core/navigation/... ./core/scene/...
+go test -bench=. ./core/...
 ```
+
+---
 
 ## 📊 Tecnologia
 
 | Camada | Tecnologia |
-|--------|------------|
-| **Editor** | HTML5 Canvas + Vanilla JS + CodeMirror 6 + IndexedDB |
-| **KScript** | Custom language → Go compiler (lexer, parser, checker, emitter) |
-| **Runtime** | Go 1.22+ + Ebitengine v2.7 + gomobile |
-| **Render** | Sprites, tilemaps, bitmap font, camera, shaders Kage, lighting, parallax |
-| **Physics** | AABB, CCD, spatial hash, joints, raycast, CharacterBody2D |
-| **Audio** | OGG/WAV/MP3, multi-bus mixer, spatial panning |
-| **Navigation** | A* grid pathfinding, path smoothing, dynamic obstacles |
-| **Animation** | Keyframe AnimationPlayer, cutscene sequencer, 28 easings |
-| **Particles** | CPU-based, burst/continuous, gravity, blend modes |
-| **UI** | Label, Button, Panel (built-in bitmap font) |
-| **Skeleton** | Bone hierarchy, CCD IK solver, rest pose |
+|---|---|
+| **Linguagem** | KScript (custom) → compilador Go |
+| **Runtime** | Go 1.22+ + Ebitengine v2.7 |
+| **CLI** | Go puro (cobra opcional para subcomandos) |
+| **Render** | Sprites, tilemaps, bitmap font, câmera, shaders Kage, iluminação, parallax |
+| **Física** | AABB, CCD, spatial hash, joints, raycast, CharacterBody2D |
+| **Áudio** | OGG/WAV/MP3, mixer multi-bus, som espacial 2D |
+| **Navegação** | A\* grid pathfinding, path smoothing, obstacles dinâmicos |
+| **Animação** | Keyframe AnimationPlayer, cutscene sequencer, 28 easings |
+| **Partículas** | CPU-based, burst/contínuo, gravidade, blend modes |
+| **UI** | Label, Button, Panel (bitmap font interna) |
+| **Skeleton** | Hierarquia de ossos, CCD IK solver, rest pose |
 | **Asset Mgmt** | Ref-counted, sync/async, scene preload, 6 loaders |
-| **Output** | Native ARM64 APK/AAB via gomobile |
+| **Empacotamento** | `go build` para desktop, gomobile para Android |
+
+---
 
 ## 📦 Estrutura do Projeto
 
 ```
 kora/
-├── editor/                     # Editor web (HTML/JS)
-│   ├── index.html, editor.js, style.css
-│   ├── code-panel.js           # CodeMirror 6 KScript editor
-│   ├── git-panel.js            # Git version control
-│   ├── assets-panel.js         # Asset management
-│   ├── serializer.js           # JSON ↔ KScript
-│   ├── preview-panel.js        # Preview runtime
-│   └── idb.js                  # IndexedDB wrapper
-│
-├── compiler/                   # KScript → Go compiler
-│   ├── lexer/parser/ast/checker/transform/emitter/
-│   ├── compiler.go             # Public CompileSource/CompileFile
-│   └── kscript.go              # Physics API registration
-│
-├── core/
-│   ├── engine/                 # (deprecated, delegates to runner)
-│   ├── runner/                 # Game loop, debug overlay, Config
-│   ├── render/                 # Renderer, Camera, Sprite, Tilemap,
-│   │                           # TextureCache, ShaderManager, BitmapFont
-│   ├── scene/                  # Scene, Entity, SceneManager, SceneTree,
-│   │                           # Loader, NodeEntity, PrefabManager
-│   ├── node/                   # Node2D, Sprite2D, Camera2D, AnimationPlayer,
-│   │                           # PhysicsBody2D, Area2D, AudioPlayer2D,
-│   │                           # Particles2D, PointLight2D, Skeleton2D,
-│   │                           # CutscenePlayer, ParallaxBackground,
-│   │                           # DebugConsole, ShaderNode, Label/Button/Panel
-│   ├── physics/                # PhysicsWorld, RigidBody, colliders, raycast,
-│   │                           # SpatialHash, SweptAABB CCD, Joint
-│   ├── input/                  # InputManager, actions, virtual pad
-│   ├── audio/                  # Manager, Mixer multi-bus, spatial
-│   ├── async/                  # Task, Scheduler, Tween (28 easings)
-│   ├── math/                   # Vector2, Rect, easing functions (28)
-│   ├── navigation/             # Pathfinder A*, NavigationRegion2D, Agent2D
-│   ├── autoload/               # Singleton registry (thread-safe)
-│   ├── asset/                  # AssetManager, ref counting, loaders
-│   └── pool/                   # Generic thread-safe object pool
-│
 ├── cmd/
-│   ├── kora-run/               # KScript compiler CLI
-│   └── kora-android/           # Android entry point
+│   ├── kora-run/             # Compilador/executor CLI de KScript
+│   └── kora-android/         # Entry point para Android (gomobile)
 │
-├── android/                    # APK build pipeline
+├── compiler/                 # Compilador KScript → Go
+│   ├── lexer/parser/ast/checker/transform/emitter/
+│   ├── compiler.go           # API pública CompileSource / CompileFile
+│   └── kscript.go            # Registro de APIs da runtime
+│
+├── core/                     # Runtime do motor
+│   ├── runner/               # Game loop, debug overlay, Config
+│   ├── render/               # Renderer, Camera, Sprite, Tilemap,
+│   │                         # TextureCache, ShaderManager, BitmapFont
+│   ├── scene/                # Scene, Entity, SceneManager, SceneTree,
+│   │                         # Loader, NodeEntity, PrefabManager
+│   ├── node/                 # Node2D, Sprite2D, Camera2D, AnimationPlayer,
+│   │                         # PhysicsBody2D, Area2D, AudioPlayer2D,
+│   │                         # Particles2D, PointLight2D, Skeleton2D,
+│   │                         # CutscenePlayer, ParallaxBackground,
+│   │                         # DebugConsole, ShaderNode, UI (Label/Button/Panel)
+│   ├── physics/              # PhysicsWorld, RigidBody, colliders, raycast,
+│   │                         # SpatialHash, SweptAABB CCD, Joint
+│   ├── input/                # InputManager, actions, virtual pad, gamepad
+│   ├── audio/                # Manager, Mixer multi-bus, espacial
+│   ├── async/                # Task, Scheduler, Tween (28 easings)
+│   ├── math/                 # Vector2, Rect, funções de easing (28)
+│   ├── navigation/           # Pathfinder A*, NavigationRegion2D, Agent2D
+│   ├── autoload/             # Registro de singletons (thread-safe)
+│   ├── asset/                # AssetManager, ref counting, loaders
+│   └── pool/                 # Pool genérico thread-safe
+│
+├── editor/                   # Editor visual legado (HTML/JS)
+│   └── ...                   # Será substituído por editor Go futuramente
+│
+├── android/                  # Pipeline de build Android
 │   ├── build.sh, setup.sh, AndroidManifest.xml
 │
-├── examples/hello/             # Minimal game example
+├── examples/                 # Jogos e demos em KScript
+│   └── hello/                # Exemplo mínimo
 │
-└── docs/                       # Documentation
-    ├── SCRIPT.md, API_REFERENCE.md, EDITOR_GUIDE.md
-    ├── ASSETS_GUIDE.md, DESKTOP_APP.md
-    ├── ARCHITECTURE.md, CONTRIBUTING.md
+├── docs/                     # Documentação
+│   ├── SCRIPT.md, API_REFERENCE.md
+│   ├── ASSETS_GUIDE.md, DESKTOP_APP.md
+│   └── ARCHITECTURE.md, CONTRIBUTING.md
+│
+├── Makefile                  # Comandos de build e desenvolvimento
+└── main.go                   # Entry point da runtime (desktop)
 ```
-
-## 📋 Roadmap
-
-### v0.1 — Runtime + Editor Base ✅
-- [x] [#33](https://github.com/ElioNeto/kora/issues/33) Sistema de Nós (Node2D) ✅
-- [x] [#34](https://github.com/ElioNeto/kora/issues/34) Sistema de Cenas ✅
-- [x] [#35](https://github.com/ElioNeto/kora/issues/35) SceneTree ✅
-- [x] [#10](https://github.com/ElioNeto/kora/issues/10) Câmera 2D ✅
-- [x] [#22](https://github.com/ElioNeto/kora/issues/22) Física 2D ✅
-- [x] [#37](https://github.com/ElioNeto/kora/issues/37) Corpos físicos (4 tipos) ✅
-- [x] [#16](https://github.com/ElioNeto/kora/issues/16) Sistema de Sprites ✅
-- [x] [#11](https://github.com/ElioNeto/kora/issues/11) Animação de sprites ✅
-- [x] [#5](https://github.com/ElioNeto/kora/issues/5) Editor KScript com syntax highlight ✅
-- [x] [#4](https://github.com/ElioNeto/kora/issues/4) CI/CD GitHub Actions ✅
-- [ ] [#6](https://github.com/ElioNeto/kora/issues/6) Loja de templates
-
-### v0.2 — Editor Features ✅
-- [x] Sistema de Objetos + Eventos KScript ✅
-- [x] Editor de Salas (grid, snap, layers) ✅
-- [x] Auto-tile + Tile System ✅
-- [x] AnimationPlayer + CutscenePlayer ✅
-- [x] Mixer de Áudio + som espacial ✅
-- [x] Debugger (FPS, entities, tasks, node tree) ✅
-- [x] AutoLoad (Singletons) ✅
-- [x] Git Panel (status, stage, commit) ✅
-
-### v0.3 — Runtime Features ✅
-- [x] [#25](https://github.com/ElioNeto/kora/issues/25) Exportação Android (APK/AAB) ✅
-- [x] [#40](https://github.com/ElioNeto/kora/issues/40) Sistema de Partículas ✅
-- [x] [#41](https://github.com/ElioNeto/kora/issues/41) Iluminação 2D Dinâmica ✅
-- [x] [#42](https://github.com/ElioNeto/kora/issues/42) Pathfinding A* ✅
-- [x] [#43](https://github.com/ElioNeto/kora/issues/43) Parallax ✅
-- [x] [#39](https://github.com/ElioNeto/kora/issues/39) Skeleton2D com IK ✅
-- [x] [#24](https://github.com/ElioNeto/kora/issues/24) Shaders (Kage) ✅
-- [ ] [#31](https://github.com/ElioNeto/kora/issues/31) Networking / Multiplayer 🔲
-
-### v1.0 — Polimento (Em andamento)
-- [ ] UI System (Label, Button, Panel) ✅ *(implementado)*
-- [ ] Prefabs ✅
-- [ ] Asset Manager ✅
-- [ ] Spatial Hash + CCD + Joints ✅
-- [ ] Benchmark tests ✅
-- [ ] 28 easing functions ✅
-- [ ] Timeline animation editor 🔲
-- [ ] Gamepad input 🔲
-- [ ] Sprite batching 🔲
-- [ ] Completo documentation 🔲
-- [ ] Example games 🔲
-- [ ] Multi-platform export (Windows, Linux, iOS) 🔲
-
-## 🤝 Contribuindo
-
-Veja [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) para como contribuir.
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE)
 
 ---
 
-**Kora Engine** — Crie jogos 2D para Android com editor visual e performance nativa.
+## 🗺️ Roadmap
 
-[Documentação KScript](docs/SCRIPT.md) · [API Reference](docs/API_REFERENCE.md) · [Issues](https://github.com/ElioNeto/kora/issues)
+Visão geral do planejamento. Detalhes completos em [ROADMAP.md](ROADMAP.md).
+
+| Versão | Foco | Status |
+|---|---|---|
+| **v1.0** | Runtime Desktop | 🚧 Em andamento |
+| **v2.0** | Editor Go + Ecossistema | 🔲 Planejado |
+| **v3.0** | Cloud & Multiplayer | 🔲 Futuro |
+
+---
+
+## 🧭 Direção do Projeto
+
+Kora começou como um experimento de engine Android com editor web. A partir de 2025, o projeto **migrou para desktop-first** com as seguintes mudanças estratégicas:
+
+- **Runtime Go como centro** — não mais Android-first, mas multiplataforma desktop com exportação opcional para Android
+- **Editor nativo Go** — substituição gradual do editor HTML/JS por um editor desktop escrito em Go (Ebitengine + IMGUI)
+- **Ferramentas CLI** — todo o fluxo de desenvolvimento centrado em terminal, sem dependência de navegador
+- **KScript como linguagem primária** — compilador maduro com ecossistema próprio
+
+> O editor web legado (`editor/`) permanece no repositório para referência, mas não receberá novas funcionalidades. O foco ativo é no runtime Go e nas ferramentas CLI.
+
+---
+
+## 🤝 Contribuindo
+
+Veja [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) para guia de contribuição, padrões de código e processo de PR.
+
+---
+
+## 📄 Licença
+
+MIT License — veja [LICENSE](LICENSE)
+
+---
+
+**Kora Engine** — Crie jogos 2D para desktop com Go e KScript.
+Performance nativa. Zero overhead. CLI-first.
+
+[Documentação KScript](docs/SCRIPT.md) · [Referência de API](docs/API_REFERENCE.md) · [Issues](https://github.com/ElioNeto/kora/issues)
