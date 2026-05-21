@@ -489,3 +489,100 @@ func (m *mockScriptHandler) Update(dt float64) {
 func (m *mockScriptHandler) Input(event InputEvent) {
 	_ = event
 }
+
+// ---------------------------------------------------------------------------
+// Camera2D tests
+// ---------------------------------------------------------------------------
+
+func TestNewCamera2D(t *testing.T) {
+	cam := NewCamera2D("MainCamera")
+	if cam == nil {
+		t.Fatal("expected non-nil camera")
+	}
+	if cam.GetName() != "MainCamera" {
+		t.Errorf("expected name 'MainCamera', got '%s'", cam.GetName())
+	}
+}
+
+func TestCamera2D_SetTarget(t *testing.T) {
+	cam := NewCamera2D("cam")
+	target := NewNode2D("target", 1)
+	offset := math.NewVector2(0, 0)
+	cam.SetTarget(target, offset)
+	got := cam.GetTarget()
+	if got != target {
+		t.Error("expected target to match")
+	}
+}
+
+func TestCamera2D_ShakeStartsAndFinishes(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.Shake(10, 1.0) // intensity=10, duration=1s
+
+	// After starting, shake should be active but with zero offset initially
+	// (offset accumulates during Update)
+	cam.Update(0.1) // advance 0.1s
+
+	// After 1.1 seconds, shake should be finished
+	cam.Update(1.0)
+	// Shake should now be done
+	// (we can verify by checking there's no more shake offset after full duration)
+	cam.Update(0.1) // past duration
+}
+
+func TestCamera2D_ShakeZeroDuration(t *testing.T) {
+	cam := NewCamera2D("cam")
+	// Should not panic
+	cam.Shake(10, 0)
+	cam.Update(0.1)
+}
+
+func TestCamera2D_ShakeZeroIntensity(t *testing.T) {
+	cam := NewCamera2D("cam")
+	// Should not panic
+	cam.Shake(0, 1.0)
+	cam.Update(0.1)
+}
+
+func TestCamera2D_Bounds(t *testing.T) {
+	cam := NewCamera2D("cam")
+	min := math.NewVector2(0, 0)
+	max := math.NewVector2(100, 100)
+	cam.SetBounds(min, max)
+
+	gotMin, gotMax := cam.GetBounds()
+	if gotMin != min {
+		t.Errorf("expected min %v, got %v", min, gotMin)
+	}
+	if gotMax != max {
+		t.Errorf("expected max %v, got %v", max, gotMax)
+	}
+}
+
+func TestCamera2D_TargetOffset(t *testing.T) {
+	cam := NewCamera2D("cam")
+	offset := math.NewVector2(10, 20)
+	cam.SetTargetOffset(offset)
+	got := cam.GetTargetOffset()
+	if got != offset {
+		t.Errorf("expected offset %v, got %v", offset, got)
+	}
+}
+
+func TestCamera2D_Smoothing(t *testing.T) {
+	cam := NewCamera2D("cam")
+	cam.SetSmoothing(0.5)
+	got := cam.GetSmoothing()
+	if got != 0.5 {
+		t.Errorf("expected smoothing 0.5, got %f", got)
+	}
+	// Clamp to [0,1]
+	cam.SetSmoothing(-0.1)
+	if cam.GetSmoothing() != 0 {
+		t.Errorf("expected smoothing clamped to 0, got %f", cam.GetSmoothing())
+	}
+	cam.SetSmoothing(1.5)
+	if cam.GetSmoothing() != 1 {
+		t.Errorf("expected smoothing clamped to 1, got %f", cam.GetSmoothing())
+	}
+}

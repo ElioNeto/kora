@@ -375,6 +375,13 @@ type Camera2D struct {
 	// Camera bounds
 	minBounds math.Vector2
 	maxBounds math.Vector2
+
+	// Shake state (non-blocking, applied each frame in Update)
+	shaking        bool
+	shakeIntensity float64
+	shakeDuration  float64
+	shakeElapsed   float64
+	shakeOffset    math.Vector2
 }
 
 // NewCamera2D creates a new Camera2D
@@ -440,7 +447,7 @@ func (c *Camera2D) OnScreenRect() math.Rect {
 	return math.Rect{}
 }
 
-// Update processes camera follow logic
+// Update processes camera follow logic and applies shake.
 func (c *Camera2D) Update(dt float64) {
 	// Base update
 	if c.Node2D != nil {
@@ -448,7 +455,7 @@ func (c *Camera2D) Update(dt float64) {
 	}
 
 	// Follow target
-	if c.target != nil && c.targetOffset.X != 0 || c.targetOffset.Y != 0 {
+	if c.target != nil {
 		targetPos := c.target.GetWorldPosition()
 		targetPos = targetPos.Add(c.targetOffset)
 		currentPos := c.GetWorldPosition()
@@ -464,6 +471,29 @@ func (c *Camera2D) Update(dt float64) {
 
 		// Apply bounds
 		c.clampToBounds()
+	}
+
+	// Apply shake (non-blocking, decay over time)
+	if c.shaking {
+		c.shakeElapsed += dt
+		if c.shakeElapsed >= c.shakeDuration {
+			// Shake finished — reset position
+			c.shaking = false
+			c.shakeOffset = math.Vector2{}
+			c.shakeIntensity = 0
+			c.shakeElapsed = 0
+		} else {
+			// Decay intensity over time
+			progress := c.shakeElapsed / c.shakeDuration
+			currentIntensity := c.shakeIntensity * (1 - progress)
+
+			// Apply pseudo-random offset based on elapsed time
+			// Using sin/cos with different frequencies to create a shake pattern
+			randX := stdMath.Sin(c.shakeElapsed*50)*currentIntensity - currentIntensity*0.5
+			randY := stdMath.Cos(c.shakeElapsed*47)*currentIntensity - currentIntensity*0.5
+
+			c.shakeOffset = math.Vector2{X: float32(randX), Y: float32(randY)}
+		}
 	}
 }
 
@@ -487,20 +517,18 @@ func (c *Camera2D) clampToBounds() {
 	c.SetWorldPosition(pos.X, pos.Y)
 }
 
-// Shake shakes camera for visual effect
+// Shake starts a non-blocking camera shake effect.
+// amount controls the maximum displacement in world units; duration is in seconds.
+// The shake is applied each frame in Update() and decays to zero over duration.
 func (c *Camera2D) Shake(amount float32, duration float64) {
- startPos := c.GetWorldPosition()
-
- // Simulated shake - in real implementation:
- // loop over duration, add random offset to position
- for t := 0.0; t < duration; t += 0.016 {
-  randX := (float32(stdMath.Sin(t*10)*2-1) * amount) / 10
-  randY := (float32(stdMath.Cos(t*10)*2-1) * amount) / 10
-  c.SetWorldPosition(startPos.X+randX, startPos.Y+randY)
- }
-
- // Return to original position
- c.SetWorldPosition(startPos.X, startPos.Y)
+	if duration <= 0 || amount <= 0 {
+		return
+	}
+	c.shaking = true
+	c.shakeIntensity = float64(amount)
+	c.shakeDuration = duration
+	c.shakeElapsed = 0
+	c.shakeOffset = math.Vector2{}
 }
 
 // AudioPlayer2D plays audio

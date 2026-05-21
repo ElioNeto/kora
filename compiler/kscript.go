@@ -13,8 +13,8 @@ func RegisterPhysicsAPI(world *physics.PhysicsWorld) {
 			world.SetGravity(float32(x), float32(y))
 		},
 		"raycast": func(fromX, fromY, toX, toY float64, mask int) map[string]interface{} {
-			from := physics.Vec2{float32(fromX), float32(fromY)}
-			to := physics.Vec2{float32(toX), float32(toY)}
+			from := physics.Vec2{X: float32(fromX), Y: float32(fromY)}
+			to := physics.Vec2{X: float32(toX), Y: float32(toY)}
 			hit := world.Raycast(from, to, uint16(mask))
 			return map[string]interface{}{
 				"hit":     hit.Hit,
