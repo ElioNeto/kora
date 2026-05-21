@@ -36,6 +36,7 @@
     <button class="tb-btn" data-tab="preview">&#9654; Preview</button>
     <button class="tb-btn" data-tab="assets">Assets</button>
     <button class="tb-btn" data-tab="code">Script</button>
+    <button class="tb-btn" data-tab="git">Git</button>
   </div>
   <div class="topbar-right">
     <button class="tb-btn" id="btn-new"       title="Nova cena (Ctrl+N)">&#43; Nova</button>
@@ -102,6 +103,11 @@
       </div>
     </div>
 
+    <!-- GIT -->
+    <div id="tab-git" class="tab-pane" style="display:none">
+      <div id="git-panel-container" class="git-panel-container"></div>
+    </div>
+
   </main>
 
   <aside class="panel panel-inspector" id="inspector">
@@ -154,6 +160,7 @@
 <script src="preview-panel.js"></script>
 <script src="idb.js"></script>
 <script src="assets-panel.js"></script>
+<script src="git-panel.js"></script>
 <script type="module" src="code-panel.js"></script>
 <script defer src="editor.js"></script>
 </body>

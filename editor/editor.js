@@ -75,6 +75,9 @@ const assetsPanel = new AssetsPanel({
   onLog: log,
 });
 
+// Git Panel
+const gitPanel = new GitPanel(document.getElementById('git-panel-container'), { onLog: log });
+
 // Code Panel
 let codePanel = null;
 window.__sceneEntities = () => state.entities.map(e => e.name);
@@ -494,11 +497,12 @@ document.getElementById('btn-export').addEventListener('click',()=>{
 
 // Tabs
 function switchTab(tab){
-  ['scene','preview','assets','code'].forEach(t=>{
+  ['scene','preview','assets','code','git'].forEach(t=>{
     const el=document.getElementById(`tab-${t}`);
     if(el) el.style.display=(t===tab)?'flex':'none';
   });
   if(tab==='scene') resizeCanvas();
+  if(tab==='git') gitPanel.show();
 }
 document.querySelectorAll('.tb-btn[data-tab]').forEach(btn=>{
   btn.addEventListener('click',()=>{

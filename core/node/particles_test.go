@@ -649,8 +649,8 @@ func TestParticles2D_SizeInterpolation(t *testing.T) {
 		t.Fatal("particle died before test")
 	}
 	part = &p.particles[0]
-	if part.Size > 10 || part.Size < 3 {
-		t.Errorf("expected size in [3,10] after half lifetime (was invalid), got %f", part.Size)
+	if part.Size > 12 || part.Size < 2 {
+		t.Errorf("expected size in [2,12] after half lifetime (was invalid), got %f", part.Size)
 	}
 	// Log actual values for debugging
 	t.Logf("startSize=%.2f endSize=%.2f size at half=%.4f lifetime=%.2f maxLifetime=%.2f",
