@@ -1,16 +1,18 @@
-// Package engine is the entry point of the Kora runtime.
-// It wires together the renderer, input, audio, scene and async scheduler.
+// Package engine provides the Kora runtime entry point.
+//
+// Deprecated: Use github.com/ElioNeto/kora/runner instead. This package now
+// delegates all functionality to the runner package and is kept for backward
+// compatibility only.
 package engine
 
 import (
-	"github.com/ElioNeto/kora/core/async"
-	"github.com/ElioNeto/kora/core/input"
-	"github.com/ElioNeto/kora/core/render"
-	"github.com/ElioNeto/kora/core/scene"
+	"github.com/ElioNeto/kora/runner"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // Config holds the initial engine configuration.
+//
+// Deprecated: Use runner.Config instead.
 type Config struct {
 	Title  string
 	Width  int
@@ -19,50 +21,43 @@ type Config struct {
 }
 
 // Engine is the main Kora runtime.
+//
+// Deprecated: Use runner.Game instead. This type delegates to runner internally.
 type Engine struct {
-	cfg       Config
-	renderer  *render.Renderer
-	input     *input.Manager
-	scheduler *async.Scheduler
-	scene     *scene.Scene
+	game *runner.Game
 }
 
 // New creates and initialises a new Engine.
+//
+// Deprecated: Use runner.New instead.
 func New(cfg Config) (*Engine, error) {
-	e := &Engine{
-		cfg:       cfg,
-		renderer:  render.NewRenderer(),
-		input:     input.New(),
-		scheduler: async.NewScheduler(),
-		scene:     scene.New(),
-	}
-	return e, nil
+	g := runner.New(runner.Config{
+		Title:     cfg.Title,
+		Width:     cfg.Width,
+		Height:    cfg.Height,
+		TargetFPS: cfg.FPS,
+	})
+	return &Engine{game: g}, nil
 }
 
 // Run starts the game loop using Ebitengine.
+//
+// Deprecated: Use runner.Run instead.
 func (e *Engine) Run() error {
-	ebiten.SetWindowSize(e.cfg.Width, e.cfg.Height)
-	ebiten.SetWindowTitle(e.cfg.Title)
-	ebiten.SetTPS(e.cfg.FPS)
-	return ebiten.RunGame(e)
+	return runner.Run(e.game)
 }
 
 // Update is called every tick by Ebitengine.
 func (e *Engine) Update() error {
-	dt := 1.0 / float64(e.cfg.FPS)
-	e.input.Update()
-	e.scene.Update(dt)
-	e.scheduler.Tick(dt)
-	return nil
+	return e.game.Update()
 }
 
 // Draw is called every frame by Ebitengine.
 func (e *Engine) Draw(screen *ebiten.Image) {
-	e.renderer.SetScreen(screen)
-	e.scene.Draw(e.renderer)
+	e.game.Draw(screen)
 }
 
 // Layout returns the logical screen size.
 func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return e.cfg.Width, e.cfg.Height
+	return e.game.Layout(outsideWidth, outsideHeight)
 }

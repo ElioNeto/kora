@@ -1,23 +1,22 @@
 package main
 
 import (
+	"image/color"
 	"log"
 
-	"github.com/ElioNeto/kora/core/engine"
+	"github.com/ElioNeto/kora/runner"
 )
 
 func main() {
-	e, err := engine.New(engine.Config{
-		Title:  "Kora Engine",
-		Width:  360,
-		Height: 640,
-		FPS:    60,
+	g := runner.New(runner.Config{
+		Title:        "Kora Engine",
+		Width:        360,
+		Height:       640,
+		TargetFPS:    60,
+		ClearColor:   color.RGBA{0x0d, 0x0d, 0x1a, 0xff},
+		DebugOverlay: false,
 	})
-	if err != nil {
-		log.Fatalf("failed to create engine: %v", err)
-	}
-
-	if err := e.Run(); err != nil {
-		log.Fatalf("engine error: %v", err)
+	if err := runner.Run(g); err != nil {
+		log.Fatal(err)
 	}
 }

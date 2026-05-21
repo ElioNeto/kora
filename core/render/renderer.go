@@ -10,9 +10,25 @@ package render
 
 import (
 	"image/color"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
+
+// cachedWhitePixel is a reusable 1×1 white image used by DrawRect to avoid
+// allocating a new image on every call.
+var (
+	cachedWhitePixel   *ebiten.Image
+	initWhitePixelOnce sync.Once
+)
+
+func getWhitePixel() *ebiten.Image {
+	initWhitePixelOnce.Do(func() {
+		cachedWhitePixel = ebiten.NewImage(1, 1)
+		cachedWhitePixel.Fill(color.White)
+	})
+	return cachedWhitePixel
+}
 
 // Vec2 is a 2D float64 vector used throughout the engine.
 type Vec2 struct{ X, Y float64 }
@@ -47,30 +63,31 @@ func (r *Renderer) Screen() *ebiten.Image { return r.screen }
 
 // DrawRect draws a filled rectangle on the image.
 func DrawRect(img *ebiten.Image, x, y, w, h float64, c color.Color) {
-	if img == nil {
+	if img == nil || c == nil {
 		return
 	}
-	// Create a 1x1 pixel image and stretch it
-	pixel := ebiten.NewImage(1, 1)
-	pixel.Fill(c)
+	pixel := getWhitePixel()
+	r, g, b, a := c.RGBA()
 
 	opts := &ebiten.DrawImageOptions{}
 	opts.GeoM.Scale(w, h)
 	opts.GeoM.Translate(x, y)
-
+	opts.ColorScale.Scale(
+		float32(r)/65535,
+		float32(g)/65535,
+		float32(b)/65535,
+		float32(a)/65535,
+	)
 	img.DrawImage(pixel, opts)
 }
 
-// DebugTextAt draws debug text at screen coordinates.
+// DebugTextAt draws debug text at screen coordinates using the built-in font.
 func DebugTextAt(img *ebiten.Image, msg string, x, y int) {
-	// Placeholder for debug text rendering
-	// Full implementation requires a font atlas
 	if img == nil {
 		return
 	}
-	_ = msg
-	_ = x
-	_ = y
+	initDefaultFont()
+	DefaultFont.DrawText(img, msg, float64(x), float64(y), 1.0, nil)
 }
 
 // Clear fills the screen with c.

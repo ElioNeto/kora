@@ -27,11 +27,12 @@ import (
 // Config holds startup parameters for the Kora game runner.
 type Config struct {
 	Title        string
-	Width        int     // logical screen width in pixels
-	Height       int     // logical screen height in pixels
-	TargetFPS    int     // 0 = use Ebitengine default (60)
+	Width        int               // logical screen width in pixels
+	Height       int               // logical screen height in pixels
+	TargetFPS    int               // 0 = use Ebitengine default (60)
 	ClearColor   color.Color
 	DebugOverlay bool
+	OnCreate     func(s *scene.Scene) // optional callback; called with the initial scene
 }
 
 func (c *Config) apply() {
@@ -90,8 +91,13 @@ func GameSceneManager() *scene.SceneManager {
 	return gameInstance.sceneManager
 }
 
-// New creates a Game with the given config and initial scene factory.
-func New(cfg Config, initial SceneFactory) *Game {
+// New creates a Game with the given config and optional initial scene factory.
+//
+// The initial scene can be populated in one of three ways (first match wins):
+//  1. Pass a SceneFactory as a variadic argument.
+//  2. Set Config.OnCreate.
+//  3. Leave both unset to start with an empty scene.
+func New(cfg Config, initial ...SceneFactory) *Game {
 	cfg.apply()
 	g := &Game{cfg: cfg}
 	gameInstance = g
@@ -102,7 +108,17 @@ func New(cfg Config, initial SceneFactory) *Game {
 	scene.SetKScriptAPIManager(g.sceneManager)
 	scene.SetKScriptAPITree(g.tree)
 	g.tree.SetCurrentScene(scene.New())
-	initial(g.tree.GetCurrentScene())
+
+	// Determine which factory to use.
+	var fn SceneFactory
+	if len(initial) > 0 {
+		fn = initial[0]
+	} else if cfg.OnCreate != nil {
+		fn = cfg.OnCreate
+	}
+	if fn != nil {
+		fn(g.tree.GetCurrentScene())
+	}
 	return g
 }
 
