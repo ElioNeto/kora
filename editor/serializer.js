@@ -41,6 +41,8 @@ function sceneToJSON(entities, meta = {}) {
       color:    e.color,
       assetId:  e.assetId || '',
       script:   e.script || '',
+      zIndex:   e.zIndex || 0,
+      tags:     e.tags || '',
     };
     if (childrenMap[e.id]) {
       obj.children = childrenMap[e.id].map(child => entityToObj(child));
@@ -91,6 +93,8 @@ function jsonToScene(doc, nextId) {
       assetId:  e.assetId  || '',
       script:   e.script   || '',
       parentId: parentId || null,
+      zIndex:   Number(e.zIndex) || 0,
+      tags:     e.tags || '',
     };
     entities.push(ent);
     // Process children if present
@@ -154,6 +158,12 @@ function sceneToKScript(entities, sceneName = 'GameScene') {
     lines.push(`  visible  = ${e.visible}`);
     if (e.color) {
       lines.push(`  color    = "${e.color}"`);
+    }
+    if (e.zIndex) {
+      lines.push(`  zIndex   = ${e.zIndex}`);
+    }
+    if (e.tags) {
+      lines.push(`  tags     = "${e.tags}"`);
     }
     lines.push('');
 

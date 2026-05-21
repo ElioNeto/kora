@@ -9,6 +9,8 @@ const state = {
   drag: null, idSeq: 1,
   meta: { name: 'Untitled', version: 1, logicalW: 360, logicalH: 640 },
   dirty: false,
+  snapEnabled: false, snapSize: 16,
+  selectedIds: new Set(), pan: null,
 };
 const LOGICAL_W = 360, LOGICAL_H = 640;
 
@@ -168,7 +170,8 @@ function render() {
   ctx.strokeRect(ox,oy,pw,ph);
   ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(ox,oy,pw,ph);
   ctx.restore();
-  for (const e of state.entities) { if (e.visible) drawEntity(e); }
+  const sorted = [...state.entities].sort((a,b)=>(a.zIndex||0)-(b.zIndex||0)||a.id-b.id);
+  for (const e of sorted) { if (e.visible) drawEntity(e); }
   if (state.selected) { const e=getEntity(state.selected); if(e) drawSelection(e); }
   zoomEl.textContent = Math.round(state.cam.zoom*100)+'%';
   document.title = (state.dirty?'● ':'')+state.meta.name+' — Kora Editor';
@@ -229,7 +232,7 @@ function drawSelection(e) {
 function getEntity(id) { return state.entities.find(e=>e.id===id); }
 function nextId() { return state.idSeq++; }
 function createEntity(name,type) {
-  return{id:nextId(),name,type,x:0,y:0,w:48,h:48,rotation:0,visible:true,locked:false,color:randomColor(),script:'',parentId:null};
+  return{id:nextId(),name,type,x:0,y:0,w:48,h:48,rotation:0,visible:true,locked:false,color:randomColor(),script:'',parentId:null,zIndex:0,tags:''};
 }
 function randomColor(){
   return['#00e5a0','#388bfd','#e3b341','#f85149','#bc8cff','#ff7b72','#79c0ff'][Math.floor(Math.random()*7)];
@@ -251,11 +254,12 @@ function buildHierarchy(){
   });
   function createItem(e, level) {
     const li = document.createElement('li');
-    li.className = 'hierarchy-item' + (e.id === state.selected ? ' selected' : '');
+    const isSel=e.id===state.selected, isMulti=state.selectedIds.has(e.id);
+    li.className = 'hierarchy-item' + (isSel?' selected':'') + (isMulti&&!isSel?' multi-selected':'');
     li.dataset.id = e.id;
     li.draggable = true;
     li.style.paddingLeft = (12 + level * 16) + 'px';
-    li.innerHTML = `<span class="entity-icon">${ENTITY_ICONS[e.type]||'⬡'}</span><span class="entity-name" data-id="${e.id}">${e.name}</span><button class="entity-vis">${e.visible?'👁':'🚫'}</button>`;
+    li.innerHTML = `<span class="entity-icon">${ENTITY_ICONS[e.type]||'⬡'}</span><span class="entity-name" data-id="${e.id}">${e.name}</span><span class="entity-z-badge">z${e.zIndex||0}</span><button class="entity-vis">${e.visible?'👁':'🚫'}</button>`;
     // Click selection
     li.addEventListener('click', ev => {
       if (ev.target.classList.contains('entity-vis')) { e.visible = !e.visible; markDirty(); buildHierarchy(); render(); return; }
@@ -325,12 +329,14 @@ function buildHierarchy(){
 }
 function selectEntity(id){
   state.selected=id;
+  state.selectedIds.add(id);
   const e=getEntity(id);
   buildHierarchy();buildInspector(e);render();
   if(codePanel&&e) codePanel.loadForEntity(e.id,e.name,e.script);
 }
 function deselectAll(){
   state.selected=null;
+  state.selectedIds.clear();
   buildHierarchy();
   inspectorEl.innerHTML='<p class="inspector-empty">Selecione uma entidade</p>';
   render();
@@ -342,39 +348,62 @@ function clearDirty(){state.dirty=false;render();}
 // Inspector
 function buildInspector(e){
   if(!e){inspectorEl.innerHTML='<p class="inspector-empty">Selecione uma entidade</p>';return;}
+  const multiInfo = state.selectedIds.size > 1
+    ? `<div class="multi-select-info">${state.selectedIds.size} entidades selecionadas</div>`
+    : '';
   const assetRow = e.assetId
     ? `<div class="prop-row"><span class="prop-label">Asset</span><span style="font-size:11px;color:var(--color-text-muted)">${assetsPanel.get(e.assetId)?.name||e.assetId}</span></div>`
     : '';
   inspectorEl.innerHTML=`
-    <div class="inspector-section">
+    ${multiInfo}
+    <div class="inspector-section" data-section="identity">
       <div class="inspector-section-title">Identidade</div>
-      <div class="prop-row"><span class="prop-label">Nome</span><input class="prop-input" data-prop="name" value="${e.name}"></div>
-      <div class="prop-row"><span class="prop-label">Tipo</span><input class="prop-input" value="${e.type}" disabled></div>
-      ${assetRow}
+      <div class="inspector-section-content">
+        <div class="prop-row"><span class="prop-label">Nome</span><input class="prop-input" data-prop="name" value="${e.name}"></div>
+        <div class="prop-row"><span class="prop-label">Tipo</span><input class="prop-input" value="${e.type}" disabled></div>
+        <div class="prop-row"><span class="prop-label">Tags</span><input class="prop-input" data-prop="tags" value="${e.tags||''}" placeholder="tag1, tag2"></div>
+        ${assetRow}
+      </div>
     </div>
-    <div class="inspector-section">
+    <div class="inspector-section" data-section="transform">
       <div class="inspector-section-title">Transform</div>
-      <div class="prop-row"><span class="prop-label">X</span><input class="prop-input" type="number" data-prop="x" value="${e.x}"></div>
-      <div class="prop-row"><span class="prop-label">Y</span><input class="prop-input" type="number" data-prop="y" value="${e.y}"></div>
-      <div class="prop-row"><span class="prop-label">Largura</span><input class="prop-input" type="number" data-prop="w" value="${e.w}"></div>
-      <div class="prop-row"><span class="prop-label">Altura</span><input class="prop-input" type="number" data-prop="h" value="${e.h}"></div>
-      <div class="prop-row"><span class="prop-label">Rotação</span><input class="prop-input" type="number" data-prop="rotation" value="${e.rotation}"></div>
+      <div class="inspector-section-content">
+        <div class="prop-row"><span class="prop-label">X</span><input class="prop-input" type="number" data-prop="x" value="${e.x}"></div>
+        <div class="prop-row"><span class="prop-label">Y</span><input class="prop-input" type="number" data-prop="y" value="${e.y}"></div>
+        <div class="prop-row"><span class="prop-label">Largura</span><input class="prop-input" type="number" data-prop="w" value="${e.w}"></div>
+        <div class="prop-row"><span class="prop-label">Altura</span><input class="prop-input" type="number" data-prop="h" value="${e.h}"></div>
+        <div class="prop-row"><span class="prop-label">Rotação</span><input class="prop-input" type="number" data-prop="rotation" value="${e.rotation}"></div>
+        <div class="prop-row"><span class="prop-label">Z-Index</span><input class="prop-input" type="number" data-prop="zIndex" value="${e.zIndex||0}"></div>
+      </div>
     </div>
-    <div class="inspector-section">
+    <div class="inspector-section" data-section="visual">
       <div class="inspector-section-title">Visual</div>
-      <div class="prop-row"><span class="prop-label">Cor</span><input class="prop-color" type="color" data-prop="color" value="${e.color}"></div>
-      <div class="prop-row"><span class="prop-label">Visível</span><input class="prop-checkbox" type="checkbox" data-prop="visible" ${e.visible?'checked':''}></div>
-      <div class="prop-row"><span class="prop-label">Travado</span><input class="prop-checkbox" type="checkbox" data-prop="locked" ${e.locked?'checked':''}></div>
+      <div class="inspector-section-content">
+        <div class="prop-row"><span class="prop-label">Cor</span><input class="prop-color" type="color" data-prop="color" value="${e.color}"></div>
+        <div class="prop-row"><span class="prop-label">Visível</span><input class="prop-checkbox" type="checkbox" data-prop="visible" ${e.visible?'checked':''}></div>
+        <div class="prop-row"><span class="prop-label">Travado</span><input class="prop-checkbox" type="checkbox" data-prop="locked" ${e.locked?'checked':''}></div>
+      </div>
     </div>
-    <div class="inspector-section">
+    <div class="inspector-section" data-section="layers">
+      <div class="inspector-section-title">Camadas</div>
+      <div class="inspector-section-content">
+        <button class="btn-secondary" id="btn-layer-up" style="flex:1" title="Bring Forward (PageUp)">▲ Subir</button>
+        <button class="btn-secondary" id="btn-layer-down" style="flex:1" title="Send Backward (PageDown)">▼ Descer</button>
+      </div>
+    </div>
+    <div class="inspector-section" data-section="script">
       <div class="inspector-section-title">Script KScript</div>
-      <p style="font-size:11px;color:var(--color-text-muted);margin:0 0 4px">Editar na aba <strong>Script</strong></p>
-      <pre style="font-family:var(--font-code);font-size:10px;color:var(--color-text-faint);background:var(--color-bg);padding:6px;border-radius:var(--radius-sm);max-height:60px;overflow:hidden;white-space:pre-wrap;word-break:break-all">${(e.script||'').substring(0,120)}${(e.script||'').length>120?'…':''}</pre>
+      <div class="inspector-section-content">
+        <p style="font-size:11px;color:var(--color-text-muted);margin:0 0 4px">Editar na aba <strong>Script</strong></p>
+        <pre style="font-family:var(--font-code);font-size:10px;color:var(--color-text-faint);background:var(--color-bg);padding:6px;border-radius:var(--radius-sm);max-height:60px;overflow:hidden;white-space:pre-wrap;word-break:break-all">${(e.script||'').substring(0,120)}${(e.script||'').length>120?'…':''}</pre>
+      </div>
     </div>
-    <div class="inspector-section">
+    <div class="inspector-section" data-section="actions">
       <div class="inspector-section-title">Ações</div>
-      <button class="btn-secondary" id="btn-duplicate" style="width:100%;margin-bottom:4px">Duplicar</button>
-      <button class="btn-secondary" id="btn-delete" style="width:100%;color:#f85149;border-color:#f85149">Excluir</button>
+      <div class="inspector-section-content">
+        <button class="btn-secondary" id="btn-duplicate" style="width:100%;margin-bottom:4px">Duplicar</button>
+        <button class="btn-secondary" id="btn-delete" style="width:100%;color:#f85149;border-color:#f85149">Excluir</button>
+      </div>
     </div>
   `;
   inspectorEl.querySelectorAll('[data-prop]').forEach(input=>{
@@ -387,15 +416,34 @@ function buildInspector(e){
       markDirty(); render();
     });
   });
+  // Collapsible sections
+  inspectorEl.querySelectorAll('.inspector-section-title').forEach(title=>{
+    title.addEventListener('click',()=>{title.parentElement.classList.toggle('collapsed');});
+  });
+  // Layer buttons
+  inspectorEl.querySelector('#btn-layer-up')?.addEventListener('click',()=>{
+    e.zIndex=(e.zIndex||0)+1;
+    buildHierarchy();buildInspector(e);markDirty();render();
+    log(`Camada: ${e.name} → zIndex ${e.zIndex}`,'info');
+  });
+  inspectorEl.querySelector('#btn-layer-down')?.addEventListener('click',()=>{
+    e.zIndex=(e.zIndex||0)-1;
+    buildHierarchy();buildInspector(e);markDirty();render();
+    log(`Camada: ${e.name} → zIndex ${e.zIndex}`,'info');
+  });
   inspectorEl.querySelector('#btn-duplicate')?.addEventListener('click',()=>{
     const copy={...e,id:nextId(),name:e.name+'_copy',x:e.x+16,y:e.y+16};
-    state.entities.push(copy);selectEntity(copy.id);buildHierarchy();markDirty();
+    state.entities.push(copy);
+    state.selectedIds.clear();state.selectedIds.add(copy.id);
+    selectEntity(copy.id);buildHierarchy();markDirty();
     log(`Duplicado: ${copy.name}`,'ok');
   });
   inspectorEl.querySelector('#btn-delete')?.addEventListener('click',()=>{
-    const idx=state.entities.findIndex(en=>en.id===e.id);
-    if(idx>=0) state.entities.splice(idx,1);
-    deselectAll();markDirty();log(`Excluído: ${e.name}`,'warn');
+    const ids=[...state.selectedIds];
+    ids.forEach(id=>{const idx=state.entities.findIndex(en=>en.id===id);if(idx>=0) state.entities.splice(idx,1);});
+    state.selectedIds.clear();
+    deselectAll();markDirty();
+    log(`Excluído(s): ${ids.length} entidade(s)`,'warn');
   });
 }
 
@@ -463,25 +511,68 @@ document.querySelectorAll('.tb-btn[data-tab]').forEach(btn=>{
 // Canvas interaction
 canvas.addEventListener('mousemove',ev=>{
   const r=canvas.getBoundingClientRect();
-  const[wx,wy]=screenToWorld(ev.clientX-r.left,ev.clientY-r.top);
-  coordsEl.textContent=`x: ${Math.round(wx)}  y: ${Math.round(wy)}`;
+  let[wx,wy]=screenToWorld(ev.clientX-r.left,ev.clientY-r.top);
+  // Snap preview
+  const snapActive=ev.shiftKey||state.snapEnabled;
+  const dX=snapActive?Math.round(wx/state.snapSize)*state.snapSize:Math.round(wx);
+  const dY=snapActive?Math.round(wy/state.snapSize)*state.snapSize:Math.round(wy);
+  coordsEl.textContent=`x: ${dX}  y: ${dY}`+(snapActive?`  [snap ${state.snapSize}]`:'');
+  // Pan
+  if(state.pan){
+    state.cam.x=state.pan.ox+(ev.clientX-state.pan.sx);
+    state.cam.y=state.pan.oy+(ev.clientY-state.pan.sy);
+    render(); return;
+  }
+  // Drag
   if(state.drag){
     const e=getEntity(state.drag.entityId);
-    if(e&&!e.locked){e.x=Math.round(wx-state.drag.ox);e.y=Math.round(wy-state.drag.oy);buildInspector(e);markDirty();render();}
+    if(e&&!e.locked){
+      const rawX=wx-state.drag.ox, rawY=wy-state.drag.oy;
+      const nx=snapActive?Math.round(rawX/state.snapSize)*state.snapSize:Math.round(rawX);
+      const ny=snapActive?Math.round(rawY/state.snapSize)*state.snapSize:Math.round(rawY);
+      const dx=nx-(state.drag.origins[state.drag.entityId]?.x||0);
+      const dy=ny-(state.drag.origins[state.drag.entityId]?.y||0);
+      state.selectedIds.forEach(id=>{
+        const en=getEntity(id);
+        if(en&&!en.locked&&state.drag.origins[id]){en.x=Math.round(state.drag.origins[id].x+dx);en.y=Math.round(state.drag.origins[id].y+dy);}
+      });
+      buildInspector(e);markDirty();render();
+    }
   }
 });
 canvas.addEventListener('mousedown',ev=>{
   const r=canvas.getBoundingClientRect();
   const[wx,wy]=screenToWorld(ev.clientX-r.left,ev.clientY-r.top);
+  // Middle mouse pan
+  if(ev.button===1){ev.preventDefault();state.pan={ox:state.cam.x,oy:state.cam.y,sx:ev.clientX,sy:ev.clientY};return;}
   const hit=[...state.entities].reverse().find(e=>{
     if(!e.visible||e.locked)return false;
     return wx>=e.x-e.w/2&&wx<=e.x+e.w/2&&wy>=e.y-e.h/2&&wy<=e.y+e.h/2;
   });
-  if(hit){selectEntity(hit.id);if(state.tool==='select'||state.tool==='move')state.drag={entityId:hit.id,ox:wx-hit.x,oy:wy-hit.y};}
-  else deselectAll();
+  if(hit){
+    if(ev.ctrlKey||ev.metaKey){
+      const wasSelected=state.selectedIds.has(hit.id);
+      if(wasSelected) state.selectedIds.delete(hit.id); else state.selectedIds.add(hit.id);
+      if(state.selectedIds.size===0){deselectAll();return;}
+      if(wasSelected&&state.selected===hit.id) state.selected=[...state.selectedIds][0];
+      else if(!wasSelected) state.selected=hit.id;
+      const primary=getEntity(state.selected);
+      buildHierarchy();buildInspector(primary);render();
+    } else {
+      state.selectedIds.clear();state.selectedIds.add(hit.id);
+      selectEntity(hit.id);
+    }
+    if(state.tool==='select'||state.tool==='move'){
+      const origins={};
+      state.selectedIds.forEach(id=>{const en=getEntity(id);if(en)origins[id]={x:en.x,y:en.y};});
+      state.drag={entityId:hit.id,ox:wx-hit.x,oy:wy-hit.y,origins};
+    }
+  } else {
+    if(!ev.ctrlKey&&!ev.metaKey){state.selectedIds.clear();deselectAll();}
+  }
 });
-canvas.addEventListener('mouseup',()=>{state.drag=null;});
-canvas.addEventListener('mouseleave',()=>{state.drag=null;});
+canvas.addEventListener('mouseup',()=>{state.drag=null;state.pan=null;});
+canvas.addEventListener('mouseleave',()=>{state.drag=null;state.pan=null;});
 canvas.addEventListener('wheel',ev=>{
   ev.preventDefault();
   state.cam.zoom=Math.min(4,Math.max(0.1,state.cam.zoom*(ev.deltaY>0?0.9:1.1)));
@@ -499,6 +590,16 @@ document.getElementById('btn-zoom-fit').addEventListener('click',()=>{
   state.cam={x:0,y:0,zoom:Math.min(canvas.width/LOGICAL_W,canvas.height/LOGICAL_H)*0.85};
   render();
 });
+// Snap toggle
+const snapBtn=document.getElementById('btn-snap');
+const gridSizeEl=document.getElementById('vp-grid-size');
+function updateSnapUI(){
+  snapBtn.classList.toggle('active-snap',state.snapEnabled);
+  snapBtn.innerHTML=state.snapEnabled?'&#8862;':'&#8863;';
+  gridSizeEl.style.display=state.snapEnabled?'inline':'none';
+  gridSizeEl.textContent=state.snapSize+'px';
+}
+snapBtn.addEventListener('click',()=>{state.snapEnabled=!state.snapEnabled;updateSnapUI();showToast(state.snapEnabled?`Snap ${state.snapSize}px ativado`:'Snap desativado');});
 
 // Modal
 const backdrop=document.getElementById('modal-backdrop');
@@ -537,12 +638,16 @@ window.addEventListener('keydown',ev=>{
     case 'g':case 'G':document.querySelector('[data-tool="move"]').click();break;
     case 'f':case 'F':document.getElementById('btn-zoom-fit').click();break;
     case 'Delete':case 'Backspace':
-      if(state.selected){
-        const e=getEntity(state.selected),idx=state.entities.findIndex(en=>en.id===state.selected);
-        if(idx>=0){state.entities.splice(idx,1);deselectAll();markDirty();log(`Excluído: ${e?.name}`,'warn');}
+      if(state.selectedIds.size>0){
+        const ids=[...state.selectedIds];
+        ids.forEach(id=>{const idx=state.entities.findIndex(en=>en.id===id);if(idx>=0)state.entities.splice(idx,1);});
+        state.selectedIds.clear();
+        deselectAll();markDirty();log(`Excluído(s): ${ids.length} entidade(s)`,'warn');
       }
       break;
     case 'F5':ev.preventDefault();document.getElementById('btn-play').click();break;
+    case 'PageUp':ev.preventDefault();if(state.selected){const e=getEntity(state.selected);if(e){e.zIndex=(e.zIndex||0)+1;buildHierarchy();buildInspector(e);markDirty();render();log(`${e.name} → zIndex ${e.zIndex}`,'info');}}break;
+    case 'PageDown':ev.preventDefault();if(state.selected){const e=getEntity(state.selected);if(e){e.zIndex=(e.zIndex||0)-1;buildHierarchy();buildInspector(e);markDirty();render();log(`${e.name} → zIndex ${e.zIndex}`,'info');}}break;
   }
 });
 window.addEventListener('beforeunload',ev=>{if(state.dirty){ev.preventDefault();ev.returnValue='';}});
@@ -561,4 +666,5 @@ resizeCanvas();
 state.cam.zoom=0.75;
 seedScene();
 render();
+updateSnapUI();
 log('Kora Editor v4 iniciado. Aba Assets: importe sprites e arraste para a cena.','ok');

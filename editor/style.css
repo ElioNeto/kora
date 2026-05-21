@@ -89,6 +89,7 @@ body {
 .vp-tool { background:none; border:1px solid transparent; color:var(--color-text-muted); border-radius:var(--radius-sm); width:26px; height:26px; display:grid; place-items:center; cursor:pointer; font-size:13px; transition:all var(--transition); }
 .vp-tool:hover { background:var(--color-surface-offset); color:var(--color-text); }
 .vp-tool.active { background:var(--color-primary-dim); color:var(--color-primary); border-color:var(--color-primary); }
+.vp-tool.active-snap { background:var(--color-primary-dim); color:var(--color-primary); }
 .vp-sep { width:1px; height:18px; background:var(--color-border); margin:0 4px; }
 .vp-info { font-size:11px; color:var(--color-text-faint); font-family:var(--font-code); margin-left:4px; }
 #scene-canvas { flex:1; display:block; cursor:crosshair; image-rendering:pixelated; }
@@ -134,6 +135,55 @@ body {
 .prop-checkbox { width:14px; height:14px; accent-color:var(--color-primary); }
 .script-area { width:100%; min-height:120px; background:var(--color-bg); border:1px solid var(--color-border); color:var(--color-text); border-radius:var(--radius-sm); padding:8px; font-family:var(--font-code); font-size:11px; line-height:1.6; resize:vertical; transition:border-color var(--transition); }
 .script-area:focus { outline:none; border-color:var(--color-primary); }
+/* Layer badge in hierarchy */
+.entity-z-badge {
+  font-size: 9px;
+  color: var(--color-text-faint);
+  background: var(--color-surface-offset);
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+  font-family: var(--font-code);
+  line-height: 1.5;
+}
+/* Multi-selection in hierarchy */
+.hierarchy-item.multi-selected {
+  background: var(--color-primary-dim);
+  opacity: 0.65;
+}
+/* Collapsible inspector sections */
+.inspector-section-title {
+  cursor: pointer;
+  user-select: none;
+}
+.inspector-section-title::before {
+  content: '▼';
+  font-size: 7px;
+  margin-right: 5px;
+  display: inline-block;
+  transition: transform var(--transition);
+}
+.inspector-section-title.collapsed::before {
+  transform: rotate(-90deg);
+}
+.inspector-section.collapsed .inspector-section-content {
+  display: none;
+}
+/* Layer section uses flex layout for buttons */
+.inspector-section[data-section="layers"] .inspector-section-content {
+  display: flex;
+  gap: 4px;
+}
+/* Multi-select info bar */
+.multi-select-info {
+  font-size: 11px;
+  color: var(--color-primary);
+  text-align: center;
+  padding: 6px 8px;
+  background: var(--color-primary-dim);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
 /* CONSOLE */
 .console { height:var(--console-h); flex-shrink:0; display:flex; flex-direction:column; background:var(--color-surface); border-top:1px solid var(--color-border); }
 .console-header { display:flex; align-items:center; justify-content:space-between; padding:4px 12px; border-bottom:1px solid var(--color-border); font-size:11px; font-weight:600; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.5px; }
