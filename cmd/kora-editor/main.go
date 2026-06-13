@@ -252,25 +252,25 @@ func NewEditor() *Editor {
 		showConsole:   true,
 		showHierarchy: true,
 		showInspector: true,
-		hierarchyW:    200,
-		inspectorW:    220,
-		toolbarH:      42,
-		consoleH:      80,
+		hierarchyW:    240,
+		inspectorW:    260,
+		toolbarH:      52,
+		consoleH:      110,
 		gridSize:      32,
 		hoverEntityID: -1,
-		bgDark:        color.RGBA{0x0d, 0x11, 0x17, 0xff},
-		bgPanel:       color.RGBA{0x16, 0x1b, 0x22, 0xff},
-		bgViewport:    color.RGBA{0x0d, 0x11, 0x17, 0xff},
-		accent:        color.RGBA{0x00, 0xe5, 0xa0, 0xff},
-		accentDim:     color.RGBA{0x00, 0xe5, 0xa0, 0x60},
-		textPrimary:   color.RGBA{0xe6, 0xed, 0xf3, 0xff},
-		textMuted:     color.RGBA{0x8b, 0x94, 0x9e, 0xff},
-		textFaint:     color.RGBA{0x58, 0x5f, 0x66, 0xff},
-		btnBg:         color.RGBA{0x2d, 0x2d, 0x3d, 0xff},
-		btnHover:      color.RGBA{0x3d, 0x3d, 0x50, 0xff},
-		btnActive:     color.RGBA{0x4d, 0x4d, 0x60, 0xff},
-		success:       color.RGBA{0x3f, 0xb9, 0x50, 0xff},
-		warning:       color.RGBA{0xe3, 0xb3, 0x41, 0xff},
+		bgDark:        color.RGBA{0x1a, 0x1c, 0x1e, 0xff},
+		bgPanel:       color.RGBA{0x24, 0x26, 0x28, 0xff},
+		bgViewport:    color.RGBA{0x1a, 0x1c, 0x1e, 0xff},
+		accent:        color.RGBA{0x4a, 0x9e, 0xff, 0xff},
+		accentDim:     color.RGBA{0x4a, 0x9e, 0xff, 0x40},
+		textPrimary:   color.RGBA{0xd4, 0xd4, 0xd4, 0xff},
+		textMuted:     color.RGBA{0x88, 0x8a, 0x8c, 0xff},
+		textFaint:     color.RGBA{0x5a, 0x5c, 0x5e, 0xff},
+		btnBg:         color.RGBA{0x2f, 0x31, 0x33, 0xff},
+		btnHover:      color.RGBA{0x3a, 0x3c, 0x3e, 0xff},
+		btnActive:     color.RGBA{0x44, 0x46, 0x48, 0xff},
+		success:       color.RGBA{0x1e, 0xa5, 0x5e, 0xff},
+		warning:       color.RGBA{0xcc, 0xa7, 0x00, 0xff},
 
 		// Phase 1
 		showCameraGizmo: true,
@@ -844,122 +844,112 @@ func (app *EditorApp) Draw(screen *ebiten.Image) {
 
 func (e *Editor) drawToolbar(screen *ebiten.Image) {
 	fillRect(screen, 0, 0, float64(e.screenW()), e.toolbarH, e.bgPanel)
+	fillRect(screen, 0, e.toolbarH-1, float64(e.screenW()), 1, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
 
-	// Logo
-	logX := 8.0
-	fillRect(screen, logX, 8, 4, e.toolbarH-16, e.accent)
-	drawTextS(screen, "KORA", logX+12, 8, 1.3, e.accent)
-	drawTextS(screen, "EDITOR", logX+60, 10, 0.8, e.textMuted)
+	btnY, btnH := 8.0, e.toolbarH-16
 
-	// ---- Toolbar buttons ----
-	btnY, btnH := 6.0, e.toolbarH-12
+	// Logo — GameMaker-inspired
+	logX := 10.0
+	fillRect(screen, logX, btnY+2, 3, btnH-4, e.accent)
+	drawTextS(screen, "KORA", logX+12, btnY-2, 2.2, e.accent)
 
-	type tbBtn struct {
-		x, w float64
+	// ---- File buttons ----
+	btnX := 140.0
+	fileBtns := []struct {
 		text string
 		id   string
-		enabled bool
+		tip  string
+	}{
+		{"+ Novo", "new", "Novo projeto (Ctrl+N)"},
+		{"Salvar", "save", "Salvar cena (Ctrl+S)"},
+		{"Abrir", "open", "Abrir cena (Ctrl+O)"},
 	}
-	btns := []tbBtn{
-		{200, 48, "Novo", "new", true},
-		{252, 48, "Salvar", "save", true},
-		{304, 48, "Abrir", "open", true},
-	}
-
-	// Separator
-	for _, b := range btns {
+	for i, b := range fileBtns {
+		x := btnX + float64(i)*62
 		bg := e.btnBg
 		if e.hoverToolbarItem == b.id { bg = e.btnHover }
-		fillRect(screen, b.x, btnY, b.w, btnH, bg)
-		drawTextS(screen, b.text, b.x+6, btnY+6, 0.7, e.textPrimary)
+		fillRect(screen, x, btnY, 56, btnH, bg)
+		drawTextS(screen, b.text, x+4, btnY+3, 1.2, e.textPrimary)
 	}
 
-	// Undo/Redo indicators
-	ux := 370.0
-	if e.undo.CanUndo() {
-		drawTextS(screen, "↩", ux, btnY+4, 1.0, e.accent)
-	} else {
-		drawTextS(screen, "↩", ux, btnY+4, 1.0, e.textFaint)
-	}
-	ux += 24
-	if e.undo.CanRedo() {
-		drawTextS(screen, "↪", ux, btnY+4, 1.0, e.accent)
-	} else {
-		drawTextS(screen, "↪", ux, btnY+4, 1.0, e.textFaint)
-	}
+	// Undo/Redo
+	ux := btnX + 200
+	undoCol := e.textFaint
+	if e.undo.CanUndo() { undoCol = e.accent }
+	drawTextS(screen, "↩", ux, btnY+2, 1.6, undoCol)
+	redoCol := e.textFaint
+	if e.undo.CanRedo() { redoCol = e.accent }
+	drawTextS(screen, "↪", ux+24, btnY+2, 1.6, redoCol)
 
-	// Tabs
+	// Separator line
+	fx := ux + 50
+	fillRect(screen, fx, btnY+4, 1, btnH-8, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
+
+	// Tabs — GameMaker style
 	tabs := []struct {
 		x    float64
 		name string
 		tab  EditorTab
 		id   string
 	}{
-		{420, "▶ Cena", TabScene, "tab_scene"},
-		{480, "Assets", TabAssets, "tab_assets"},
-		{540, "Script", TabCode, "tab_script"},
-		{598, "Sprite", TabSprite, "tab_sprite"},
+		{fx + 12, "Cena", TabScene, "tab_scene"},
+		{fx + 70, "Assets", TabAssets, "tab_assets"},
+		{fx + 130, "Script", TabCode, "tab_script"},
+		{fx + 190, "Sprite", TabSprite, "tab_sprite"},
+		{fx + 250, "Anim", TabAnim, "tab_anim"},
 	}
 	for _, tab := range tabs {
 		col := e.textMuted
 		bg := color.RGBA{}
-		if e.activeTab == tab.tab { col = e.accent; bg = color.RGBA{0x0d, 0x11, 0x17, 0xcc} }
-		if e.hoverToolbarItem == tab.id && e.activeTab != tab.tab { col = e.textPrimary; bg = e.btnBg }
-		if bg.A > 0 { fillRect(screen, tab.x, btnY, 56, btnH, bg) }
-		drawTextS(screen, tab.name, tab.x+4, btnY+6, 0.7, col)
+		if e.activeTab == tab.tab {
+			col = e.accent
+			bg = e.accentDim
+		}
+		if e.hoverToolbarItem == tab.id && e.activeTab != tab.tab {
+			col = e.textPrimary
+			bg = e.btnBg
+		}
+		if bg.A > 0 {
+			fillRect(screen, tab.x, btnY, 56, btnH, bg)
+		}
+		drawTextS(screen, tab.name, tab.x+4, btnY+3, 1.2, col)
 	}
 
-	// Tool buttons
+	// Tool buttons (right side)
+	toolRight := float64(e.screenW()) - 280
+	fillRect(screen, toolRight-8, btnY+4, 1, btnH-8, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
+
 	toolBtns := []struct {
 		x    float64
 		text string
 		t    Tool
 		id   string
 	}{
-		{610, "▼ Sel", ToolSelect, "tool_select"},
-		{648, "✚ Mover", ToolMove, "tool_move"},
-		{696, "◧ Escala", ToolScale, "tool_scale"},
+		{toolRight, "▼ Sel", ToolSelect, "tool_select"},
+		{toolRight + 50, "✚ Mover", ToolMove, "tool_move"},
+		{toolRight + 100, "◧ Escala", ToolScale, "tool_scale"},
 	}
 	for _, tb := range toolBtns {
 		bg := e.btnBg
 		col := e.textMuted
 		if e.tool == tb.t { bg = e.accentDim; col = e.accent }
 		if e.hoverToolbarItem == tb.id && e.tool != tb.t { bg = e.btnHover; col = e.textPrimary }
-		fillRect(screen, tb.x, btnY, 44, btnH, bg)
-		drawTextS(screen, tb.text, tb.x+4, btnY+6, 0.7, col)
+		fillRect(screen, tb.x, btnY, 46, btnH, bg)
+		drawTextS(screen, tb.text, tb.x+3, btnY+3, 1.1, col)
 	}
 
-	// ── Phase 1: Animation tab button ──
-	animX := 744.0
-	animCol := e.textMuted
-	if e.activeTab == TabAnim { animCol = e.accent }
-	fillRect(screen, animX, btnY, 46, btnH, color.RGBA{})
-	drawTextS(screen, "⏱ Anim", animX+4, btnY+6, 0.65, animCol)
-
-	// ── Phase 1: Play button ──
-	playX := 794.0
+	// Play button
+	playX := toolRight + 160
 	playCol := color.RGBA{0x1e, 0xa5, 0x5e, 0xff}
-	playText := "▶"
-	if e.playMode { playText = "⏹"; playCol = color.RGBA{0xf4, 0x47, 0x47, 0xff} }
-	fillRect(screen, playX, btnY, 32, btnH, color.RGBA{playCol.R, playCol.G, playCol.B, 40})
-	drawTextS(screen, playText, playX+8, btnY+5, 1.0, playCol)
+	playText := "▶ Play"
+	if e.playMode { playText = "⏹ Stop"; playCol = color.RGBA{0xf4, 0x47, 0x47, 0xff} }
+	fillRect(screen, playX, btnY, 66, btnH, color.RGBA{playCol.R, playCol.G, playCol.B, 30})
+	drawTextS(screen, playText, playX+4, btnY+3, 1.2, playCol)
 
-	// ── Phase 1: Hot-Reload indicator ──
-	hrX := 830.0
-	hrCol := e.textFaint
-	hrText := "⟳"
-	if e.hotReload.IsEnabled() {
-		hrCol = color.RGBA{0x4a, 0x9e, 0xff, 0xff}
-		errs := e.hotReload.BuildErrors()
-		if len(errs) > 0 { hrCol = color.RGBA{0xf4, 0x47, 0x47, 0xff} }
-	}
-	drawTextS(screen, hrText, hrX, btnY+6, 0.9, hrCol)
-
-	// ── Phase 1: FPS + mode indicator ──
-	fpsX := 860.0
+	// Mode indicator
 	modeText := "EDIT"
 	if e.playMode { modeText = "PLAY" }
-	drawTextS(screen, modeText, fpsX, btnY+6, 0.7,
+	drawTextS(screen, modeText, playX+72, btnY+3, 1.1,
 		map[bool]color.RGBA{true: {0x1e, 0xa5, 0x5e, 0xff}, false: e.accent}[e.playMode])
 
 	// Panel toggles
@@ -1001,60 +991,55 @@ func (e *Editor) drawHierarchy(screen *ebiten.Image) {
 	fillRect(screen, 0, vpY, e.hierarchyW, vpH, e.bgPanel)
 
 	// Header
-	drawTextS(screen, "HIERARQUIA", 8, vpY+8, 0.75, e.textMuted)
+	drawTextS(screen, "HIERARQUIA", 10, vpY+6, 1.4, e.textMuted)
 	nEntities := fmt.Sprintf("%d itens", len(e.scene.Entities))
-	drawTextS(screen, nEntities, e.hierarchyW-60, vpY+8, 0.6, e.textFaint)
-	fillRect(screen, 0, vpY+24, e.hierarchyW, 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
+	drawTextS(screen, nEntities, e.hierarchyW-80, vpY+6, 1.0, e.textFaint)
+	fillRect(screen, 0, vpY+28, e.hierarchyW, 1, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
 
 	// + Add button
-	addBtnX, addBtnY := e.hierarchyW-28, vpY+4
+	addBtnX, addBtnY := e.hierarchyW-34, vpY+3
 	addHover := e.hoverToolbarItem == "add_entity"
 	bg := e.btnBg; if addHover { bg = e.btnHover }
-	fillRect(screen, addBtnX, addBtnY, 24, 18, bg)
-	drawTextS(screen, "+", addBtnX+8, addBtnY+1, 0.9, e.accent)
+	fillRect(screen, addBtnX, addBtnY, 28, 22, bg)
+	drawTextS(screen, "+", addBtnX+9, addBtnY+3, 1.5, e.accent)
 
-	y := vpY + 30
+	y := vpY + 36
 	for _, ent := range e.scene.Entities {
 		sel := ent.ID == e.selectedID || e.selectedIDs[ent.ID]
 		hov := ent.ID == e.hoverEntityID
 
-		// Selection background
-		if sel { fillRect(screen, 2, y-1, e.hierarchyW-4, 18, e.accentDim) } else if hov { fillRect(screen, 2, y-1, e.hierarchyW-4, 18, e.btnHover) }
+		// Selection background — larger hit area
+		if sel { fillRect(screen, 2, y-1, e.hierarchyW-4, 24, e.accentDim) } else if hov { fillRect(screen, 2, y-1, e.hierarchyW-4, 24, e.btnHover) }
 
 		// Visibility toggle
 		visIcon := "👁"; col := e.textPrimary
 		if !ent.Visible { visIcon = "🚫"; col = e.textFaint }
 		if sel { col = e.accent }
-		drawTextS(screen, visIcon, 6, y, 0.7, e.textFaint)
+		drawTextS(screen, visIcon, 6, y, 1.1, e.textFaint)
 		icon := map[string]string{"sprite": "▣", "camera": "◉", "tilemap": "▤", "audio": "♪", "custom": "◇"}
-		drawTextS(screen, fmt.Sprintf("%s %s", icon[ent.Type], ent.Name), 26, y, 0.7, col)
-		drawTextS(screen, fmt.Sprintf("z%d", ent.ZIndex), e.hierarchyW-36, y, 0.55, e.textFaint)
+		drawTextS(screen, fmt.Sprintf("%s %s", icon[ent.Type], ent.Name), 26, y+1, 1.3, col)
+		drawTextS(screen, fmt.Sprintf("z%d", ent.ZIndex), e.hierarchyW-40, y+2, 0.9, e.textFaint)
 
-		// Type label
-		typeColor := e.textFaint
-		if ent.Type == "sprite" { typeColor = e.accent }
-		drawTextS(screen, ent.Type, 26, y+10, 0.5, typeColor)
-
-		y += 22
+		y += 26
 		if y > vpY+vpH-20 { break }
 	}
 
 	// Bottom: action buttons
-	actY := float64(e.screenH()) - e.consoleH - 26
-	fillRect(screen, 2, actY, e.hierarchyW-4, 24, e.btnBg)
+	actY := float64(e.screenH()) - e.consoleH - 32
+	fillRect(screen, 2, actY, e.hierarchyW-4, 28, e.btnBg)
 
 	actBtns := []struct{
 		idx int; text string; id string
 	}{{0, "+ Add", "add_entity"}, {1, "⟐ Dup", "duplicate"}, {2, "✕ Del", "delete"}}
 	for _, b := range actBtns {
-		bx := 6 + float64(b.idx)*60
+		bx := 6 + float64(b.idx)*68
 		bg := e.btnBg
 		if e.hoverToolbarItem == b.id { bg = e.btnHover }
-		fillRect(screen, bx, actY+2, 54, 20, bg)
-		drawTextS(screen, b.text, bx+4, actY+4, 0.65, e.textPrimary)
+		fillRect(screen, bx, actY+2, 62, 24, bg)
+		drawTextS(screen, b.text, bx+4, actY+4, 1.2, e.textPrimary)
 	}
 
-	fillRect(screen, e.hierarchyW-1, vpY, 1, vpH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
+	fillRect(screen, e.hierarchyW-1, vpY, 1, vpH, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
 }
 
 func (e *Editor) drawInspector(screen *ebiten.Image) {
@@ -1062,53 +1047,52 @@ func (e *Editor) drawInspector(screen *ebiten.Image) {
 	ix := e.panelLeft() + vpW
 	fillRect(screen, ix, vpY, e.inspectorW, vpH, e.bgPanel)
 
-	drawTextS(screen, "INSPETOR", ix+8, vpY+8, 0.75, e.textMuted)
-	drawTextS(screen, e.toolName(), ix+e.inspectorW-60, vpY+8, 0.6, e.accent)
-	fillRect(screen, ix, vpY+24, e.inspectorW, 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
+	drawTextS(screen, "INSPETOR", ix+10, vpY+6, 1.4, e.textMuted)
+	drawTextS(screen, e.toolName(), ix+e.inspectorW-80, vpY+6, 1.0, e.accent)
+	fillRect(screen, ix, vpY+28, e.inspectorW, 1, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
 
 	if e.selectedID <= 0 {
-		drawTextS(screen, "Nenhum objeto selecionado", ix+12, vpY+44, 0.7, e.textFaint)
-		drawTextS(screen, "Clique em uma entidade no", ix+12, vpY+62, 0.65, e.textFaint)
-		drawTextS(screen, "viewport ou na hierarquia", ix+12, vpY+78, 0.65, e.textFaint)
+		drawTextS(screen, "Nenhum objeto selecionado", ix+14, vpY+44, 1.2, e.textFaint)
+		drawTextS(screen, "Clique em uma entidade no viewport", ix+14, vpY+68, 1.0, e.textFaint)
+		drawTextS(screen, "ou na hierarquia para inspecionar", ix+14, vpY+86, 1.0, e.textFaint)
 		return
 	}
 
 	ent := e.GetEntity(e.selectedID)
 	if ent == nil { return }
 
-	y := vpY + 32
+	y := vpY + 36
 	prop := func(h float64) float64 { y += h; return y - h }
 
 	// Identity
-	drawTextS(screen, "IDENTIDADE", ix+10, prop(18), 0.65, e.textMuted)
-	drawTextS(screen, fmt.Sprintf("Nome:  %s", ent.Name), ix+14, prop(16), 0.7, e.textPrimary)
-	drawTextS(screen, fmt.Sprintf("Tipo:  %s", ent.Type), ix+14, prop(16), 0.7, e.textMuted)
+	drawTextS(screen, "IDENTIDADE", ix+12, prop(22), 1.2, e.textMuted)
+	drawTextS(screen, fmt.Sprintf("Nome:  %s", ent.Name), ix+16, prop(20), 1.3, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Tipo:  %s", ent.Type), ix+16, prop(20), 1.2, e.textMuted)
 
 	// Separator
-	fillRect(screen, ix+8, y, e.inspectorW-16, 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
-	y += 4
+	fillRect(screen, ix+10, y, e.inspectorW-20, 1, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
+	y += 6
 
 	// Transform
-	drawTextS(screen, "TRANSFORM", ix+10, prop(18), 0.65, e.textMuted)
-	drawTextS(screen, fmt.Sprintf("X:  %.0f", ent.X), ix+14, prop(16), 0.7, e.textPrimary)
-	drawTextS(screen, fmt.Sprintf("Y:  %.0f", ent.Y), ix+14, prop(16), 0.7, e.textPrimary)
-	drawTextS(screen, fmt.Sprintf("W:  %.0f", ent.W), ix+14, prop(16), 0.7, e.textPrimary)
-	drawTextS(screen, fmt.Sprintf("H:  %.0f", ent.H), ix+14, prop(16), 0.7, e.textPrimary)
-	drawTextS(screen, fmt.Sprintf("Rot:  %.0f°", ent.Rotation), ix+14, prop(16), 0.7, e.textPrimary)
-	drawTextS(screen, fmt.Sprintf("Z:  %d", ent.ZIndex), ix+14, prop(16), 0.7, e.textPrimary)
+	drawTextS(screen, "TRANSFORM", ix+12, prop(22), 1.2, e.textMuted)
+	drawTextS(screen, fmt.Sprintf("X:  %.0f", ent.X), ix+16, prop(20), 1.3, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Y:  %.0f", ent.Y), ix+16, prop(20), 1.3, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("W:  %.0f", ent.W), ix+16, prop(20), 1.3, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("H:  %.0f", ent.H), ix+16, prop(20), 1.3, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Rot:  %.0f°", ent.Rotation), ix+16, prop(20), 1.3, e.textPrimary)
+	drawTextS(screen, fmt.Sprintf("Z:  %d", ent.ZIndex), ix+16, prop(20), 1.3, e.textPrimary)
 
 	// Visual
 	if ent.AssetID != "" || ent.Color != "" {
-		fillRect(screen, ix+8, y, e.inspectorW-16, 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
-		y += 4
-		drawTextS(screen, "VISUAL", ix+10, prop(18), 0.65, e.textMuted)
-		if ent.AssetID != "" { drawTextS(screen, "Asset:  "+filepath.Base(ent.AssetID), ix+14, prop(16), 0.65, e.textMuted) }
-		drawTextS(screen, "Visível:  "+map[bool]string{true: "Sim ✅", false: "Não 🚫"}[ent.Visible], ix+14, prop(16), 0.7, e.textPrimary)
-		// Color preview swatch
+		fillRect(screen, ix+10, y, e.inspectorW-20, 1, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
+		y += 6
+		drawTextS(screen, "VISUAL", ix+12, prop(22), 1.2, e.textMuted)
+		if ent.AssetID != "" { drawTextS(screen, "Asset:  "+filepath.Base(ent.AssetID), ix+16, prop(20), 1.1, e.textMuted) }
+		drawTextS(screen, "Visível:  "+map[bool]string{true: "Sim", false: "Não"}[ent.Visible], ix+16, prop(20), 1.3, e.textPrimary)
 		if ent.Color != "" {
 			swatchCol := parseHex(ent.Color)
-			fillRect(screen, ix+14, y, 14, 10, swatchCol)
-			drawTextS(screen, fmt.Sprintf("  %s", ent.Color), ix+30, prop(16), 0.65, e.textMuted)
+			fillRect(screen, ix+16, y, 18, 14, swatchCol)
+			drawTextS(screen, fmt.Sprintf("  %s", ent.Color), ix+36, prop(20), 1.1, e.textMuted)
 		}
 	}
 }
@@ -1181,11 +1165,11 @@ func (e *Editor) drawViewport(screen *ebiten.Image) {
 	// Viewport info overlay
 	info := fmt.Sprintf("%dx%d  |  Zoom: %.0f%%  |  Grid: %dpx  Snap: %s",
 		e.scene.Meta.LogicalW, e.scene.Meta.LogicalH, e.camZoom*100, int(e.snapSize),
-		map[bool]string{true: "ON ✅", false: "OFF"}[e.snapEnabled])
-	drawTextS(screen, info, vpX+8, vpY+vpH-16, 0.6, e.textFaint)
+		map[bool]string{true: "ON", false: "OFF"}[e.snapEnabled])
+	drawTextS(screen, info, vpX+10, vpY+vpH-18, 1.0, e.textFaint)
 
 	// Entity count
-	drawTextS(screen, fmt.Sprintf("%d entidades", len(e.scene.Entities)), vpX+vpW-100, vpY+vpH-16, 0.6, e.textFaint)
+	drawTextS(screen, fmt.Sprintf("%d entidades", len(e.scene.Entities)), vpX+vpW-140, vpY+vpH-18, 1.0, e.textFaint)
 
 	// Viewport border
 	drawRectBorder(screen, vpX, vpY, vpW, vpH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff}, 1)
@@ -1214,24 +1198,24 @@ func (e *Editor) drawEntitySprite(screen *ebiten.Image, ent *SceneEntity) {
 
 	// Entity type icon in center
 	icon := map[string]string{"sprite": "◆", "camera": "◎", "tilemap": "■", "audio": "♫", "custom": "◇"}
-	drawTextS(screen, icon[ent.Type], sx-3*e.camZoom, sy-4*e.camZoom, 1.0*e.camZoom, color.RGBA{0xff, 0xff, 0xff, 0x99})
+	drawTextS(screen, icon[ent.Type], sx-5*e.camZoom, sy-6*e.camZoom, 1.5*e.camZoom, color.RGBA{0xff, 0xff, 0xff, 0x99})
 
 	// Label below
-	labelScale := 0.7 * e.camZoom
-	if labelScale < 0.5 { labelScale = 0.5 }
-	if labelScale > 1.0 { labelScale = 1.0 }
-	drawTextS(screen, ent.Name, sx-sw/2, sy+sh/2+2, labelScale, e.textPrimary)
+	labelScale := 1.2 * e.camZoom
+	if labelScale < 0.8 { labelScale = 0.8 }
+	if labelScale > 1.6 { labelScale = 1.6 }
+	drawTextS(screen, ent.Name, sx-sw/2, sy+sh/2+3, labelScale, e.textPrimary)
 }
 
 func (e *Editor) drawConsole(screen *ebiten.Image) {
 	cy := float64(e.screenH()) - e.consoleH
 	fillRect(screen, 0, cy, float64(e.screenW()), e.consoleH, e.bgPanel)
-	drawTextS(screen, "CONSOLE", 8, cy+4, 0.65, e.textMuted)
-	fillRect(screen, 0, cy, float64(e.screenW()), 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
+	drawTextS(screen, "CONSOLE", 10, cy+5, 1.3, e.textMuted)
+	fillRect(screen, 0, cy+1, float64(e.screenW()), 1, color.RGBA{0x3c, 0x3e, 0x40, 0xff})
 
-	start := len(e.console) - 3; if start < 0 { start = 0 }
+	start := len(e.console) - 4; if start < 0 { start = 0 }
 	for i := start; i < len(e.console); i++ {
-		drawTextS(screen, "▸ "+e.console[i], 8, cy+18+float64(i-start)*16, 0.65, e.textMuted)
+		drawTextS(screen, "▸ "+e.console[i], 10, cy+22+float64(i-start)*20, 1.1, e.textMuted)
 	}
 }
 
@@ -1274,36 +1258,36 @@ func (e *Editor) drawTimeline(screen *ebiten.Image) {
 	fillRect(screen, vpX, timY, vpW, 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
 
 	// Header
-	drawTextS(screen, "TIMELINE", vpX+8, timY+4, 0.65, e.textMuted)
+	drawTextS(screen, "TIMELINE", vpX+10, timY+4, 1.3, e.textMuted)
 
 	// Clip name and controls
 	if e.activeClip != nil {
-		drawTextS(screen, e.activeClip.Name, vpX+80, timY+4, 0.7, e.accent)
+		drawTextS(screen, e.activeClip.Name, vpX+100, timY+4, 1.3, e.accent)
 	}
 
 	// Playback controls
-	ctrlY := timY + 20
-	playBtnX := vpX + 8
+	ctrlY := timY + 22
+	playBtnX := vpX + 10
 
 	// Play/Pause button
 	isPlaying := e.timelineState != nil && e.timelineState.IsPlaying
 	playText := "▶"
 	if isPlaying { playText = "⏸" }
-	drawTextS(screen, playText, playBtnX, ctrlY, 1.0, e.accent)
+	drawTextS(screen, playText, playBtnX, ctrlY, 1.6, e.accent)
 
 	// Stop button
-	drawTextS(screen, "⏹", playBtnX+20, ctrlY, 1.0, e.textMuted)
+	drawTextS(screen, "⏹", playBtnX+32, ctrlY, 1.6, e.textMuted)
 
 	// Loop toggle
 	looping := e.timelineState != nil && e.timelineState.Loop
 	loopCol := e.textMuted
 	if looping { loopCol = e.accent }
-	drawTextS(screen, "⟳", playBtnX+42, ctrlY, 1.0, loopCol)
+	drawTextS(screen, "⟳", playBtnX+64, ctrlY, 1.6, loopCol)
 
 	// Speed indicator
 	speedText := "1x"
 	if e.timelineState != nil { speedText = fmt.Sprintf("%.1fx", e.timelineState.PlaySpeed) }
-	drawTextS(screen, speedText, playBtnX+62, ctrlY+2, 0.7, e.textMuted)
+	drawTextS(screen, speedText, playBtnX+96, ctrlY+2, 1.1, e.textMuted)
 
 	// Time indicator
 	timeText := "0:00 / 0:00"
@@ -1313,26 +1297,26 @@ func (e *Editor) drawTimeline(screen *ebiten.Image) {
 		timeText = fmt.Sprintf("%d:%.2d / %d:%.2d",
 			int(cur)/60, int(cur)%60, int(dur)/60, int(dur)%60)
 	}
-	drawTextS(screen, timeText, playBtnX+100, ctrlY+2, 0.65, e.textFaint)
+	drawTextS(screen, timeText, playBtnX+140, ctrlY+2, 1.1, e.textFaint)
 
 	// Track area
-	trackY := timY + 44
-	trackH := timelineH - 48
-	fillRect(screen, vpX+4, trackY, vpW-8, trackH, color.RGBA{0x0d, 0x11, 0x17, 0xcc})
+	trackY := timY + 50
+	trackH := timelineH - 54
+	fillRect(screen, vpX+4, trackY, vpW-8, trackH, color.RGBA{0x1a, 0x1c, 0x1e, 0xcc})
 
 	if e.activeClip != nil {
 		// Track header + keyframe visualization per track
 		for ti, track := range e.activeClip.Tracks {
-			ty := trackY + float64(ti)*20
-			if ty > trackY+trackH-20 { break }
+			ty := trackY + float64(ti)*24
+			if ty > trackY+trackH-24 { break }
 
 			// Track label
-			drawTextS(screen, track.Property, vpX+8, ty+2, 0.6, e.textMuted)
+			drawTextS(screen, track.Property, vpX+10, ty+3, 1.1, e.textMuted)
 
 			// Track background
-			trackW := vpW - 80
-			trackX := vpX + 70
-			fillRect(screen, trackX, ty, trackW, 18, color.RGBA{0x16, 0x1b, 0x22, 0xcc})
+			trackW := vpW - 90
+			trackX := vpX + 80
+			fillRect(screen, trackX, ty, trackW, 22, color.RGBA{0x24, 0x26, 0x28, 0xcc})
 
 			// Draw keyframes
 			duration := e.activeClip.Duration
@@ -1343,19 +1327,19 @@ func (e *Editor) drawTimeline(screen *ebiten.Image) {
 				if kfX < trackX { continue }
 				if kfX > trackX+trackW { break }
 
-				// Keyframe diamond (small rect)
+				// Keyframe diamond
 				kfCol := e.textMuted
 				if math.Abs(kf.Time-e.timelineState.CurrentTime) < 0.05 {
 					kfCol = e.accent
 				}
-				fillRect(screen, kfX-2, ty+3, 4, 12, kfCol)
+				fillRect(screen, kfX-2, ty+4, 4, 14, kfCol)
 			}
 
 			// Playhead line
 			if e.timelineState != nil {
 				phX := trackX + (e.timelineState.CurrentTime/duration)*trackW
 				if phX >= trackX && phX <= trackX+trackW {
-					fillRect(screen, phX, ty, 1, 18, e.accent)
+					fillRect(screen, phX, ty, 2, 22, e.accent)
 				}
 			}
 		}
@@ -1560,62 +1544,62 @@ func (e *Editor) drawSpriteEditor(screen *ebiten.Image) {
 	fillRect(screen, vpX, vpY, sidebarW, vpH, e.bgPanel)
 	fillRect(screen, vpX+sidebarW, vpY, 1, vpH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
 
-	drawTextS(screen, "SPRITE EDITOR", vpX+8, vpY+8, 0.75, e.accent)
-	drawTextS(screen, "F10: fechar", vpX+8, vpY+22, 0.6, e.textFaint)
+	drawTextS(screen, "SPRITE EDITOR", vpX+12, vpY+8, 1.5, e.accent)
+	drawTextS(screen, "[F10] fechar", vpX+12, vpY+28, 1.0, e.textFaint)
 
 	if se.Resource == nil {
 		// No sprite loaded
-		drawTextS(screen, "Nenhum sprite carregado", vpX+sidebarW+20, vpY+40, 0.8, e.textMuted)
-		drawTextS(screen, "Arraste uma imagem PNG/JPEG", vpX+sidebarW+20, vpY+60, 0.7, e.textFaint)
-		drawTextS(screen, "ou use Ctrl+I para importar", vpX+sidebarW+20, vpY+76, 0.7, e.textFaint)
+		drawTextS(screen, "Nenhum sprite carregado", vpX+sidebarW+24, vpY+50, 1.3, e.textMuted)
+		drawTextS(screen, "Arraste uma imagem PNG/JPEG para importar,", vpX+sidebarW+24, vpY+76, 1.1, e.textFaint)
+		drawTextS(screen, "ou use Ctrl+I para criar um sprite teste", vpX+sidebarW+24, vpY+98, 1.1, e.textFaint)
 		return
 	}
 
 	r := se.Resource
 
 	// Sidebar tools
-	y := vpY + 44
-	drawTextS(screen, "ARQUIVO", vpX+8, y, 0.65, e.textMuted)
-	y += 18
-	drawTextS(screen, r.Name, vpX+12, y, 0.7, e.textPrimary)
-	y += 16
-	drawTextS(screen, fmt.Sprintf("%dx%d px", r.SrcWidth, r.SrcHeight), vpX+12, y, 0.6, e.textFaint)
-	y += 16
-	drawTextS(screen, string(r.Type), vpX+12, y, 0.6, e.accent)
+	y := vpY + 50
+	drawTextS(screen, "ARQUIVO", vpX+12, y, 1.2, e.textMuted)
 	y += 22
-
-	drawTextS(screen, "FRAMES", vpX+8, y, 0.65, e.textMuted)
+	drawTextS(screen, r.Name, vpX+16, y, 1.3, e.textPrimary)
+	y += 20
+	drawTextS(screen, fmt.Sprintf("%dx%d px", r.SrcWidth, r.SrcHeight), vpX+16, y, 1.0, e.textFaint)
 	y += 18
-	drawTextS(screen, fmt.Sprintf("%d frames", r.FrameCount()), vpX+12, y, 0.7, e.textPrimary)
-	y += 16
-	drawTextS(screen, fmt.Sprintf("Grid: %dx%d", r.GridCols, r.GridRows), vpX+12, y, 0.6, e.textFaint)
+	drawTextS(screen, string(r.Type), vpX+16, y, 1.1, e.accent)
+	y += 28
+
+	drawTextS(screen, "FRAMES", vpX+12, y, 1.2, e.textMuted)
 	y += 22
+	drawTextS(screen, fmt.Sprintf("%d frames", r.FrameCount()), vpX+16, y, 1.3, e.textPrimary)
+	y += 20
+	drawTextS(screen, fmt.Sprintf("Grid: %dx%d", r.GridCols, r.GridRows), vpX+16, y, 1.0, e.textFaint)
+	y += 28
 
-	drawTextS(screen, "PIVOT", vpX+8, y, 0.65, e.textMuted)
+	drawTextS(screen, "PIVOT", vpX+12, y, 1.2, e.textMuted)
+	y += 22
+	drawTextS(screen, fmt.Sprintf("(%.2f, %.2f)", r.PivotX, r.PivotY), vpX+16, y, 1.3, e.textPrimary)
 	y += 18
-	drawTextS(screen, fmt.Sprintf("(%.2f, %.2f)", r.PivotX, r.PivotY), vpX+12, y, 0.7, e.textPrimary)
-	y += 16
-	pivotPresets := []string{"center", "tl", "tc", "tr", "bl", "bc", "br"}
+	pivotPresets := []string{"center", "tl", "tr", "bl", "br"}
 	for i, p := range pivotPresets {
-		px := vpX + 12 + float64(i%4)*34
-		py := y + float64(i/4)*20
+		px := vpX + 12 + float64(i%4)*44
+		py := y + float64(i/4)*22
 		col := e.textMuted
-		if (i == 0 && r.PivotX == 0.5 && r.PivotY == 0.5) ||
-			(i == 1 && r.PivotX == 0 && r.PivotY == 0) {
+		if (p == "center" && r.PivotX == 0.5 && r.PivotY == 0.5) ||
+			(p == "tl" && r.PivotX == 0 && r.PivotY == 0) {
 			col = e.accent
 		}
-		drawTextS(screen, p, px, py, 0.55, col)
+		drawTextS(screen, p, px, py, 1.0, col)
 	}
-	y += 48
+	y += 52
 
 	if len(r.Hitboxes) > 0 {
-		drawTextS(screen, "HITBOXES", vpX+8, y, 0.65, e.textMuted)
-		y += 18
+		drawTextS(screen, "HITBOXES", vpX+12, y, 1.2, e.textMuted)
+		y += 22
 		for hi, hb := range r.Hitboxes {
 			hcol := e.textPrimary
 			if hi == se.EditingHitbox { hcol = e.accent }
 			drawTextS(screen, fmt.Sprintf("%d: %s (%.0fx%.0f)", hi, hb.Name, hb.W, hb.H),
-				vpX+12, y+float64(hi)*14, 0.6, hcol)
+				vpX+16, y+float64(hi)*20, 1.0, hcol)
 		}
 	}
 
@@ -1677,13 +1661,13 @@ func (e *Editor) drawSpriteEditor(screen *ebiten.Image) {
 	fillRect(screen, vpX+sidebarW, toolY, vpW-sidebarW, 30, e.bgPanel)
 
 	zoomText := fmt.Sprintf("Zoom: %.0f%%", se.Zoom*100)
-	drawTextS(screen, zoomText, vpX+sidebarW+12, toolY+6, 0.7, e.textMuted)
+	drawTextS(screen, zoomText, vpX+sidebarW+14, toolY+5, 1.1, e.textMuted)
 
 	frameInfo := fmt.Sprintf("Frame: 1/%d", r.FrameCount())
-	drawTextS(screen, frameInfo, vpX+sidebarW+120, toolY+6, 0.7, e.textMuted)
+	drawTextS(screen, frameInfo, vpX+sidebarW+140, toolY+5, 1.1, e.textMuted)
 
 	// Import hint
-	drawTextS(screen, "Ctrl+I: Importar", vpX+sidebarW+250, toolY+6, 0.6, e.textFaint)
+	drawTextS(screen, "Ctrl+I: Importar sprite", vpX+sidebarW+280, toolY+5, 1.0, e.textFaint)
 
 	// Border
 	drawRectBorder(screen, vpX, vpY, vpW, vpH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff}, 1)
