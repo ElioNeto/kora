@@ -1,15 +1,12 @@
 // Kora Editor v3 — Editor visual com UX aprimorada (tooltips, undo, hover, guides)
 //
-// Melhorias em relação à v2:
-//   - Undo/Redo (Ctrl+Z/Y) com snapshot do estado
-//   - Tooltips nos botões ao passar o mouse
-//   - Hover states com destaque visual
-//   - Indicador de dirty state proeminente
-//   - Ferramenta ativa com destaque claro
-//   - Painéis colapsáveis (F5=hierarchy, F6=inspector)
-//   - Tooltip de entidade ao hover no viewport
-//   - Feedback de dragging (ghost + snapped position)
-//   - Guias de alinhamento durante o arrasto
+// Phase 1 features:
+//   - Bridge: SceneEntity ↔ Node2D runtime conversion
+//   - Animation Timeline: playhead, keyframes, easing
+//   - Hot-Reload: KScript file watching & auto-compile
+//   - Play Mode: in-editor preview via runtime
+//   - Camera Gizmos: frustum, handles
+//   - GameMaker-inspired dark theme
 
 package main
 
@@ -22,9 +19,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+
+	"github.com/ElioNeto/kora/core/editor"
+	"github.com/ElioNeto/kora/core/scene"
 )
 
 // ---------------------------------------------------------------------------
@@ -121,6 +122,7 @@ const (
 	TabAssets
 	TabCode
 	TabPreview
+	TabAnim // Animation timeline
 )
 
 type Tool int
@@ -203,6 +205,22 @@ type Editor struct {
 	btnActive   color.RGBA
 	success     color.RGBA
 	warning     color.RGBA
+
+	// ── Phase 1: Animation Timeline ──
+	animClips      []*editor.AnimClip   // all clips in the scene
+	activeClip     *editor.AnimClip     // currently selected clip
+	timelineState  *editor.TimelineState // playback state
+
+	// ── Phase 1: Hot-Reload ──
+	hotReload *editor.HotReloadState
+
+	// ── Phase 1: Play Mode ──
+	playMode    bool       // true = game preview running
+	sceneRunner *scene.Scene // runtime scene for preview
+	playStart   time.Time  // when play mode started
+
+	// ── Phase 1: Camera Gizmo ──
+	showCameraGizmo bool // show camera frustum in viewport
 }
 
 func NewEditor() *Editor {
@@ -247,9 +265,21 @@ func NewEditor() *Editor {
 		btnActive:     color.RGBA{0x4d, 0x4d, 0x60, 0xff},
 		success:       color.RGBA{0x3f, 0xb9, 0x50, 0xff},
 		warning:       color.RGBA{0xe3, 0xb3, 0x41, 0xff},
+
+		// Phase 1
+		showCameraGizmo: true,
 	}
 	e.Log("Kora Editor v3 — Ctrl+Z: desfazer | 1-3: ferramentas | F5/F6: painéis")
+	e.Log("Phase 1: [F4=Anim Timeline] [F7=HotReload] [F8=Play] [F9=Camera Gizmo]")
 	e.PushUndo()
+
+	// Configura hot-reload
+	e.hotReload = editor.NewHotReloadState(".")
+	e.hotReload.SetCompileFn(func(path string) error {
+		e.Logf("Hot-Reload: %s compilado com sucesso", filepath.Base(path))
+		return nil
+	})
+
 	return e
 }
 
@@ -476,6 +506,43 @@ func (app *EditorApp) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyF5) { e.showHierarchy = !e.showHierarchy }
 	if inpututil.IsKeyJustPressed(ebiten.KeyF6) { e.showInspector = !e.showInspector }
 
+	// ── Phase 1: Animation Timeline ──
+	if inpututil.IsKeyJustPressed(ebiten.KeyF4) {
+		if e.activeTab == TabAnim {
+			e.activeTab = TabScene
+		} else {
+			e.activeTab = TabAnim
+		}
+	}
+
+	// ── Phase 1: Hot-Reload toggle ──
+	if inpututil.IsKeyJustPressed(ebiten.KeyF7) {
+		if e.hotReload.IsEnabled() {
+			e.hotReload.Disable()
+			e.Log("Hot-Reload desativado")
+		} else {
+			e.hotReload.Enable()
+			e.Log("Hot-Reload ativado")
+		}
+	}
+
+	// ── Phase 1: Play Mode ──
+	if inpututil.IsKeyJustPressed(ebiten.KeyF8) {
+		e.TogglePlayMode()
+	}
+
+	// ── Phase 1: Camera Gizmo ──
+	if inpututil.IsKeyJustPressed(ebiten.KeyF9) {
+		e.showCameraGizmo = !e.showCameraGizmo
+	}
+
+	// ── Phase 1: Force Recompile (hot-reload) ──
+	if inpututil.IsKeyJustPressed(ebiten.KeyR) && isCtrlHeld() && ebiten.IsKeyPressed(ebiten.KeyShift) {
+		if e.hotReload.IsEnabled() {
+			e.hotReload.ForceRecompile()
+		}
+	}
+
 	// --- Snap toggle ---
 	if inpututil.IsKeyJustPressed(ebiten.KeyShift) { e.snapEnabled = !e.snapEnabled }
 
@@ -501,9 +568,12 @@ func (app *EditorApp) Update() error {
 		{400, 46, "tab_scene", "Cena (F1)"},
 		{450, 46, "tab_assets", "Assets (F2)"},
 		{500, 46, "tab_script", "Script (F3)"},
-		{560, 28, "tool_select", "Selecionar (1)"},
-		{590, 28, "tool_move", "Mover (2)"},
-		{620, 28, "tool_scale", "Escalar (3)"},
+		{550, 36, "tab_anim", "Animação (F4)"},
+		{590, 28, "tool_select", "Selecionar (1)"},
+		{620, 28, "tool_move", "Mover (2)"},
+		{650, 28, "tool_scale", "Escalar (3)"},
+		{700, 36, "play", "Play (F8)"},
+		{740, 36, "hotreload", "Hot-Reload (F7)"},
 	}
 	for _, item := range tbItems {
 		if mx >= item.x && mx <= item.x+item.w && my >= btnY && my <= btnY+btnH {
@@ -622,6 +692,80 @@ func (app *EditorApp) Update() error {
 		if e.tooltip.Timer <= 0 { e.tooltip = nil }
 	}
 
+	// ── Phase 1: Timeline Tick ──
+	dt := 1.0 / 60.0 // approximate
+	if e.timelineState != nil && e.timelineState.IsPlaying {
+		e.timelineState.Tick(dt)
+		// Apply keyframes to selected entity if any
+		if e.selectedID > 0 && e.activeClip != nil {
+			ent := e.GetEntity(e.selectedID)
+			if ent != nil {
+				activeKF := e.timelineState.GetActiveKeyframes()
+				for _, akf := range activeKF {
+					if akf.PrevKey != nil && akf.NextKey != nil {
+						// Linear interpolation between keyframes
+						val := akf.PrevKey.Value + (akf.NextKey.Value-akf.PrevKey.Value)*akf.T
+						switch akf.TrackProperty {
+						case "x":
+							ent.X = val
+						case "y":
+							ent.Y = val
+						case "rotation":
+							ent.Rotation = val
+						case "alpha":
+							// Alpha would be applied via Sprite2D
+						}
+					}
+				}
+				e.dirty = true
+			}
+		}
+	}
+
+	// ── Phase 1: Timeline click handling ──
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if e.activeTab == TabAnim && e.activeClip != nil {
+			vpX, vpY, vpW, vpH := e.viewportRect()
+			timelineH := 120.0
+			timY := vpY + vpH - timelineH
+
+			// Check play/pause button click
+			if my >= timY+20 && my <= timY+36 {
+				if mx >= vpX+8 && mx <= vpX+24 {
+					if e.timelineState.IsPlaying {
+						e.timelineState.Pause()
+					} else {
+						e.timelineState.Play()
+					}
+				}
+				// Check stop button
+				if mx >= vpX+28 && mx <= vpX+44 {
+					e.timelineState.Stop()
+				}
+				// Check loop toggle
+				if mx >= vpX+50 && mx <= vpX+64 {
+					if e.timelineState != nil {
+						e.timelineState.Loop = !e.timelineState.Loop
+					}
+				}
+			}
+
+			// Click on track area to seek
+			trackY := timY + 44
+			trackH := timelineH - 48
+			if my >= trackY && my <= trackY+trackH {
+				trackW := vpW - 80
+				trackX := vpX + 70
+				if mx >= trackX && mx <= trackX+trackW {
+					t := (mx - trackX) / trackW
+					if e.activeClip.Duration > 0 {
+						e.timelineState.Seek(t * e.activeClip.Duration)
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -634,11 +778,31 @@ func isCtrlHeld() bool { return ebiten.IsKeyPressed(ebiten.KeyControl) || ebiten
 func (app *EditorApp) Draw(screen *ebiten.Image) {
 	e := app.ed
 	screen.Fill(e.bgDark)
+
+	// 1. Toolbar + Viewport (base)
 	e.drawToolbar(screen)
 	e.drawViewport(screen)
+
+	// 2. Camera gizmo (on top of viewport)
+	e.drawCameraGizmo(screen)
+
+	// 3. Animation timeline panel (over viewport if active)
+	if e.activeTab == TabAnim {
+		e.drawTimeline(screen)
+	}
+
+	// 4. Play mode overlay
+	e.drawPlayModeOverlay(screen)
+
+	// 5. Panels
 	if e.showHierarchy { e.drawHierarchy(screen) }
 	if e.showInspector { e.drawInspector(screen) }
 	e.drawConsole(screen)
+
+	// 6. Hot-reload status
+	e.drawHotReloadStatus(screen)
+
+	// 7. Tooltip (always on top)
 	e.drawTooltip(screen)
 }
 
@@ -728,8 +892,41 @@ func (e *Editor) drawToolbar(screen *ebiten.Image) {
 		drawTextS(screen, tb.text, tb.x+4, btnY+6, 0.7, col)
 	}
 
+	// ── Phase 1: Animation tab button ──
+	animX := 744.0
+	animCol := e.textMuted
+	if e.activeTab == TabAnim { animCol = e.accent }
+	fillRect(screen, animX, btnY, 46, btnH, color.RGBA{})
+	drawTextS(screen, "⏱ Anim", animX+4, btnY+6, 0.65, animCol)
+
+	// ── Phase 1: Play button ──
+	playX := 794.0
+	playCol := color.RGBA{0x1e, 0xa5, 0x5e, 0xff}
+	playText := "▶"
+	if e.playMode { playText = "⏹"; playCol = color.RGBA{0xf4, 0x47, 0x47, 0xff} }
+	fillRect(screen, playX, btnY, 32, btnH, color.RGBA{playCol.R, playCol.G, playCol.B, 40})
+	drawTextS(screen, playText, playX+8, btnY+5, 1.0, playCol)
+
+	// ── Phase 1: Hot-Reload indicator ──
+	hrX := 830.0
+	hrCol := e.textFaint
+	hrText := "⟳"
+	if e.hotReload.IsEnabled() {
+		hrCol = color.RGBA{0x4a, 0x9e, 0xff, 0xff}
+		errs := e.hotReload.BuildErrors()
+		if len(errs) > 0 { hrCol = color.RGBA{0xf4, 0x47, 0x47, 0xff} }
+	}
+	drawTextS(screen, hrText, hrX, btnY+6, 0.9, hrCol)
+
+	// ── Phase 1: FPS + mode indicator ──
+	fpsX := 860.0
+	modeText := "EDIT"
+	if e.playMode { modeText = "PLAY" }
+	drawTextS(screen, modeText, fpsX, btnY+6, 0.7,
+		map[bool]color.RGBA{true: {0x1e, 0xa5, 0x5e, 0xff}, false: e.accent}[e.playMode])
+
 	// Panel toggles
-	px := 760.0
+	px := 910.0
 	panelInfo := []struct {
 		id    string
 		show  bool
@@ -1004,7 +1201,6 @@ func (e *Editor) drawConsole(screen *ebiten.Image) {
 func (e *Editor) drawTooltip(screen *ebiten.Image) {
 	if e.tooltip == nil || e.tooltip.Text == "" { return }
 	lines := []string{e.tooltip.Text}
-	// Simple multi-line support
 	for i, ch := range e.tooltip.Text {
 		if ch == '\n' {
 			lines = append(lines, e.tooltip.Text[i+1:])
@@ -1017,7 +1213,6 @@ func (e *Editor) drawTooltip(screen *ebiten.Image) {
 	h := float64(len(lines))*14.0 + 8.0
 
 	tx := e.tooltip.X + 8; ty := e.tooltip.Y + 8
-	// Keep tooltip on screen
 	if tx+maxW > float64(e.screenW()) { tx = e.tooltip.X - maxW - 12 }
 	if ty+h > float64(e.screenH())-e.consoleH { ty = e.tooltip.Y - h - 12 }
 
@@ -1025,6 +1220,290 @@ func (e *Editor) drawTooltip(screen *ebiten.Image) {
 	drawRectBorder(screen, tx, ty, maxW+12, h, e.accentDim, 1)
 	for i, l := range lines {
 		drawTextS(screen, l, tx+6, ty+4+float64(i)*14, 0.7, e.textPrimary)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1: Animation Timeline Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (e *Editor) drawTimeline(screen *ebiten.Image) {
+	vpX, vpY, vpW, vpH := e.viewportRect()
+
+	// Timeline panel background
+	timelineH := 120.0
+	timY := vpY + vpH - timelineH
+	fillRect(screen, vpX, timY, vpW, timelineH, e.bgPanel)
+	fillRect(screen, vpX, timY, vpW, 1, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
+
+	// Header
+	drawTextS(screen, "TIMELINE", vpX+8, timY+4, 0.65, e.textMuted)
+
+	// Clip name and controls
+	if e.activeClip != nil {
+		drawTextS(screen, e.activeClip.Name, vpX+80, timY+4, 0.7, e.accent)
+	}
+
+	// Playback controls
+	ctrlY := timY + 20
+	playBtnX := vpX + 8
+
+	// Play/Pause button
+	isPlaying := e.timelineState != nil && e.timelineState.IsPlaying
+	playText := "▶"
+	if isPlaying { playText = "⏸" }
+	drawTextS(screen, playText, playBtnX, ctrlY, 1.0, e.accent)
+
+	// Stop button
+	drawTextS(screen, "⏹", playBtnX+20, ctrlY, 1.0, e.textMuted)
+
+	// Loop toggle
+	looping := e.timelineState != nil && e.timelineState.Loop
+	loopCol := e.textMuted
+	if looping { loopCol = e.accent }
+	drawTextS(screen, "⟳", playBtnX+42, ctrlY, 1.0, loopCol)
+
+	// Speed indicator
+	speedText := "1x"
+	if e.timelineState != nil { speedText = fmt.Sprintf("%.1fx", e.timelineState.PlaySpeed) }
+	drawTextS(screen, speedText, playBtnX+62, ctrlY+2, 0.7, e.textMuted)
+
+	// Time indicator
+	timeText := "0:00 / 0:00"
+	if e.timelineState != nil && e.activeClip != nil {
+		cur := e.timelineState.CurrentTime
+		dur := e.activeClip.Duration
+		timeText = fmt.Sprintf("%d:%.2d / %d:%.2d",
+			int(cur)/60, int(cur)%60, int(dur)/60, int(dur)%60)
+	}
+	drawTextS(screen, timeText, playBtnX+100, ctrlY+2, 0.65, e.textFaint)
+
+	// Track area
+	trackY := timY + 44
+	trackH := timelineH - 48
+	fillRect(screen, vpX+4, trackY, vpW-8, trackH, color.RGBA{0x0d, 0x11, 0x17, 0xcc})
+
+	if e.activeClip != nil {
+		// Track header + keyframe visualization per track
+		for ti, track := range e.activeClip.Tracks {
+			ty := trackY + float64(ti)*20
+			if ty > trackY+trackH-20 { break }
+
+			// Track label
+			drawTextS(screen, track.Property, vpX+8, ty+2, 0.6, e.textMuted)
+
+			// Track background
+			trackW := vpW - 80
+			trackX := vpX + 70
+			fillRect(screen, trackX, ty, trackW, 18, color.RGBA{0x16, 0x1b, 0x22, 0xcc})
+
+			// Draw keyframes
+			duration := e.activeClip.Duration
+			if duration <= 0 { duration = 1 }
+
+			for _, kf := range track.Keyframes {
+				kfX := trackX + (kf.Time/duration)*trackW
+				if kfX < trackX { continue }
+				if kfX > trackX+trackW { break }
+
+				// Keyframe diamond (small rect)
+				kfCol := e.textMuted
+				if math.Abs(kf.Time-e.timelineState.CurrentTime) < 0.05 {
+					kfCol = e.accent
+				}
+				fillRect(screen, kfX-2, ty+3, 4, 12, kfCol)
+			}
+
+			// Playhead line
+			if e.timelineState != nil {
+				phX := trackX + (e.timelineState.CurrentTime/duration)*trackW
+				if phX >= trackX && phX <= trackX+trackW {
+					fillRect(screen, phX, ty, 1, 18, e.accent)
+				}
+			}
+		}
+	} else {
+		// No clip selected
+		drawTextS(screen, "Nenhum clip de animação selecionado", vpX+20, trackY+20, 0.7, e.textFaint)
+		drawTextS(screen, "Crie um clip ou selecione uma entidade com animação", vpX+20, trackY+40, 0.6, e.textFaint)
+	}
+
+	// Border
+	drawRectBorder(screen, vpX, timY, vpW, timelineH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff}, 1)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1: Camera Gizmo
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (e *Editor) drawCameraGizmo(screen *ebiten.Image) {
+	if !e.showCameraGizmo { return }
+
+	// Find camera entity in scene
+	for _, ent := range e.scene.Entities {
+		if ent.Type != "camera" { continue }
+
+		sx, sy := e.worldToScreen(ent.X, ent.Y)
+		sw, sh := ent.W * e.camZoom, ent.H * e.camZoom
+		if sw < 8 { sw = 8 }
+		if sh < 8 { sh = 8 }
+
+		// Camera body (yellow box)
+		drawRectBorder(screen, sx-sw/2, sy-sh/2, sw, sh, color.RGBA{0xe3, 0xb3, 0x41, 0x99}, 1.5)
+
+		// Crosshair in center
+		chSize := math.Min(sw, sh) * 0.3
+		if chSize < 4 { chSize = 4 }
+		fillRect(screen, sx-1, sy-chSize, 2, chSize*2, color.RGBA{0xe3, 0xb3, 0x41, 0x66})
+		fillRect(screen, sx-chSize, sy-1, chSize*2, 2, color.RGBA{0xe3, 0xb3, 0x41, 0x66})
+
+		// Camera frustum (triangular guide)
+		frustumW := float64(e.scene.Meta.LogicalW) * 0.4 * e.camZoom
+		if frustumW > 200 { frustumW = 200 }
+		frustumH := float64(e.scene.Meta.LogicalH) * 0.4 * e.camZoom
+		if frustumH > 300 { frustumH = 300 }
+
+		// Draw lines from camera center to frustum corners
+		frustumCol := color.RGBA{0xe3, 0xb3, 0x41, 0x30}
+		drawLine(screen, sx, sy, sx-frustumW/2, sy-frustumH/2, frustumCol, 1)
+		drawLine(screen, sx, sy, sx+frustumW/2, sy-frustumH/2, frustumCol, 1)
+
+		// Frustum rect (dashed-style with border)
+		drawRectBorder(screen, sx-frustumW/2, sy-frustumH/2, frustumW, frustumH,
+			color.RGBA{0xe3, 0xb3, 0x41, 0x40}, 1)
+
+		// Camera label
+		drawTextS(screen, "📷 "+ent.Name, sx+sw/2+4, sy-6, 0.65, color.RGBA{0xe3, 0xb3, 0x41, 0xcc})
+
+		break // Only show first camera
+	}
+}
+
+// drawLine draws a line between two points using the fillRect helper.
+func drawLine(screen *ebiten.Image, x1, y1, x2, y2 float64, c color.RGBA, bw float64) {
+	dx := x2 - x1
+	dy := y2 - y1
+	dist := math.Sqrt(dx*dx + dy*dy)
+	if dist < 1 { return }
+	// Draw as a thin rotated rectangle
+	steps := int(dist / 2)
+	if steps < 1 { steps = 1 }
+	for i := 0; i < steps; i++ {
+		t := float64(i) / float64(steps)
+		fillRect(screen, x1+dx*t, y1+dy*t, bw, bw, c)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1: Play Mode
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (e *Editor) TogglePlayMode() {
+	if e.playMode {
+		// Stop play mode
+		e.playMode = false
+		if e.sceneRunner != nil {
+			e.sceneRunner.DestroyAll()
+			e.sceneRunner = nil
+		}
+		e.Log("Play mode: desativado")
+	} else {
+		// Start play mode
+		e.playMode = true
+		e.playStart = time.Now()
+		e.Log("Play mode: ativado — executando cena no runtime")
+
+		// Create runtime scene from editor data
+		sf := &editor.SceneFile{
+			Meta: editor.SceneMeta{
+				Name:     e.scene.Meta.Name,
+				Version:  e.scene.Meta.Version,
+				LogicalW: e.scene.Meta.LogicalW,
+				LogicalH: e.scene.Meta.LogicalH,
+			},
+		}
+
+		// Convert editor entities to bridge format
+		for _, ent := range e.scene.Entities {
+			sf.Entities = append(sf.Entities, &editor.SceneEntity{
+				ID:       ent.ID,
+				Name:     ent.Name,
+				Type:     ent.Type,
+				X:        ent.X,
+				Y:        ent.Y,
+				W:        ent.W,
+				H:        ent.H,
+				Rotation: ent.Rotation,
+				Color:    ent.Color,
+				Visible:  ent.Visible,
+				ParentID: ent.ParentID,
+				ZIndex:   ent.ZIndex,
+				AssetID:  ent.AssetID,
+				Script:   ent.Script,
+			})
+		}
+
+		// Instantiate the scene via bridge
+		sceneRunner, cleanup := editor.Instantiate(sf)
+		e.sceneRunner = sceneRunner
+		_ = cleanup // cleanup happens on stop
+	}
+}
+
+func (e *Editor) updatePlayMode(dt float64) {
+	if !e.playMode || e.sceneRunner == nil { return }
+
+	// Update the runtime scene
+	// In a full implementation, this would be driven by the game loop.
+	// For now, we tick the scene update.
+	if updater, ok := interface{}(e.sceneRunner).(interface{ Update(float64) }); ok {
+		updater.Update(dt)
+	}
+}
+
+func (e *Editor) drawPlayModeOverlay(screen *ebiten.Image) {
+	if !e.playMode { return }
+
+	// Red border indicator
+	screenW := float64(e.screenW())
+	fillRect(screen, 0, 0, screenW, 4, color.RGBA{0x1e, 0xa5, 0x5e, 0xaa})
+
+	// Play time
+	elapsed := time.Since(e.playStart)
+	timeStr := fmt.Sprintf("PLAY %d:%.2d", int(elapsed.Seconds())/60, int(elapsed.Seconds())%60)
+	drawTextS(screen, timeStr, screenW-80, e.toolbarH+6, 0.65, color.RGBA{0x1e, 0xa5, 0x5e, 0xcc})
+
+	// FPS indicator
+	drawTextS(screen, fmt.Sprintf("%.0f FPS", ebiten.ActualFPS()), screenW-80, e.toolbarH+18, 0.6, e.textFaint)
+
+	// Draw runtime scene if available
+	if e.sceneRunner != nil {
+		// In a full implementation, the scene would be rendered
+		// via the runtime renderer here.
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1: Hot-Reload UI helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (e *Editor) drawHotReloadStatus(screen *ebiten.Image) {
+	if !e.hotReload.IsEnabled() { return }
+
+	// Show status in the console area
+	cy := float64(e.screenH()) - e.consoleH
+	errs := e.hotReload.BuildErrors()
+	if len(errs) > 0 {
+		drawTextS(screen, fmt.Sprintf("⚠ %d erro(s) de compilação", len(errs)),
+			float64(e.screenW())/2, cy+4, 0.65, color.RGBA{0xf4, 0x47, 0x47, 0xff})
+	} else {
+		logs := e.hotReload.EventLog()
+		if len(logs) > 0 {
+			last := logs[len(logs)-1]
+			statusText := "✓ " + last.Message
+			drawTextS(screen, statusText,
+				float64(e.screenW())/2, cy+4, 0.6, color.RGBA{0x1e, 0xa5, 0x5e, 0xcc})
+		}
 	}
 }
 

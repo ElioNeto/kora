@@ -1,5 +1,22 @@
 /**
  * Kora Editor - Electron Main Process
+ *
+ * ═══════════════════════════════════════════════════════════════════
+ * ⚠️  LINUX — PREVENÇÃO DE CRASH DO DISPLAY SERVER
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * No Linux (Pop!_OS, Ubuntu, etc.), Electron pode crashar o
+ * X11/Wayland se o GPU process falhar — porque ele corrompe o
+ * estado compartilhado do driver gráfico.
+ *
+ * SOLUÇÃO:
+ *   1. Verificamos /dev/shm ANTES de iniciar (erro clássico)
+ *   2. Forçamos --in-process-gpu: GPU roda no MESMO processo
+ *      → se crashar, só derruba o app, não o display server
+ *   3. Capturamos TODOS os erros sem propagar para o sistema
+ *
+ * Se ainda crashar, compile com:
+ *   NODE_ENV=production electron . --no-sandbox --disable-gpu --disable-dev-shm-usage
  */
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const path = require('path')
@@ -8,7 +25,36 @@ const fs = require('fs')
 let mainWindow = null
 let previewWindow = null
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+// ─── Verificação de /dev/shm (previne crash do display server) ────
+try {
+  fs.accessSync('/dev/shm', fs.constants.W_OK | fs.constants.X_OK)
+} catch {
+  console.error('╔══════════════════════════════════════════════════════════╗')
+  console.error('║  ❌  /dev/shm INACCESSÍVEL                             ║')
+  console.error('║                                                       ║')
+  console.error('║  O Electron precisa de /dev/shm com permissão 1777.   ║')
+  console.error('║  Execute no terminal:                                 ║')
+  console.error('║                                                       ║')
+  console.error('║    sudo chmod 1777 /dev/shm                           ║')
+  console.error('║                                                       ║')
+  console.error('║  Ou use --disable-dev-shm-usage (já configurado).     ║')
+  console.error('║  Se o problema persistir, reinicie o computador.      ║')
+  console.error('╚══════════════════════════════════════════════════════════╝')
+}
+
+// ─── Prevenção de crash do display server (Linux/NVIDIA/Wayland) ──
+// CRÍTICO: --in-process-gpu faz o GPU rodar no mesmo processo.
+// Se o driver de vídeo crashar, só derruba o app — NÃO o X11/Wayland.
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('in-process-gpu')
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('no-sandbox')
+app.commandLine.appendSwitch('disable-dev-shm-usage')
+app.commandLine.appendSwitch('use-gl', 'swiftshader')
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+
+const isDev = process.env.NODE_ENV === 'development' || (!app.isPackaged && process.env.NODE_ENV !== 'production')
 const rendererPath = isDev ? 'http://localhost:5173' : path.join(__dirname, '../dist/index.html')
 
 // ─── Menu nativo ────────────────────────────────────────────────────────────
@@ -22,9 +68,6 @@ function createMenu() {
         { label: 'Abrir Cena...',  accelerator: 'CmdOrCtrl+O',       click: () => mainWindow.webContents.send('menu:open-scene') },
         { label: 'Salvar Cena',   accelerator: 'CmdOrCtrl+S',       click: () => mainWindow.webContents.send('menu:save-scene') },
         { label: 'Salvar Como...', accelerator: 'CmdOrCtrl+Shift+S', click: () => mainWindow.webContents.send('menu:save-scene-as') },
-        { type: 'separator' },
-        { label: 'Exportar KScript', accelerator: 'CmdOrCtrl+E',    click: () => mainWindow.webContents.send('menu:export-ks') },
-        { label: 'Exportar APK...',                                  click: () => mainWindow.webContents.send('menu:export-apk') },
         { type: 'separator' },
         { label: 'Sair', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() }
       ]
@@ -61,8 +104,11 @@ function createMenu() {
     {
       label: 'Jogo',
       submenu: [
-        { label: 'Testar Jogo',    accelerator: 'F5',               click: () => mainWindow.webContents.send('menu:play') },
-        { label: 'Parar Preview',  accelerator: 'F6',               click: () => { if (previewWindow) previewWindow.close() } }
+        { label: 'Executar Jogo',  accelerator: 'F5',               click: () => mainWindow.webContents.send('menu:play') },
+        { label: 'Parar Preview',  accelerator: 'F6',               click: () => { if (previewWindow) previewWindow.close() } },
+        { type: 'separator' },
+        { label: 'Exportar KScript', accelerator: 'CmdOrCtrl+E',    click: () => mainWindow.webContents.send('menu:export-ks') },
+        { label: 'Exportar APK...',                                  click: () => mainWindow.webContents.send('menu:export-apk') }
       ]
     },
     {
@@ -76,7 +122,7 @@ function createMenu() {
           click: () => dialog.showMessageBox(mainWindow, {
             type: 'info', title: 'Sobre',
             message: 'Kora Editor v0.1.0',
-            detail: 'Engine de jogos 2D para Android\nKScript\n\nMIT License'
+            detail: 'Engine de jogos 2D para Android\nKScript\n\nFeito no Brasil 🇧🇷\nMIT License'
           })
         }
       ]
@@ -87,33 +133,70 @@ function createMenu() {
 
 // ─── Janela principal ────────────────────────────────────────────────────────
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400, height: 900,
-    minWidth: 800, minHeight: 600,
-    frame: true,
-    backgroundColor: '#0f1117',
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-      webviewTag: false
-    }
-  })
+  try {
+    mainWindow = new BrowserWindow({
+      width: 1400, height: 900,
+      minWidth: 800, minHeight: 600,
+      frame: true,
+      backgroundColor: '#1a1c1e',
+      title: 'Kora Editor',
+      show: false, // Só mostra depois de carregar para evitar flicker
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+        webviewTag: false,
+        backgroundThrottling: false
+      }
+    })
 
-  createMenu()
+    createMenu()
 
-  if (rendererPath.startsWith('http://')) mainWindow.loadURL(rendererPath)
-  else mainWindow.loadFile(rendererPath)
+    if (rendererPath.startsWith('http://')) mainWindow.loadURL(rendererPath)
+    else mainWindow.loadFile(rendererPath)
 
-  if (isDev) mainWindow.webContents.openDevTools()
+    // Só mostra a janela quando o conteúdo estiver pronto
+    mainWindow.once('ready-to-show', () => {
+      mainWindow.show()
+      if (isDev) mainWindow.webContents.openDevTools()
+    })
 
-  const bounds = getWindowConfig('mainBounds')
-  if (bounds) mainWindow.setBounds(bounds)
+    const bounds = getWindowConfig('mainBounds')
+    if (bounds) mainWindow.setBounds(bounds)
 
-  mainWindow.on('resize', () => saveWindowConfig('mainBounds', mainWindow.getBounds()))
-  mainWindow.on('maximize',   () => mainWindow.webContents.send('window:maximized'))
-  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:unmaximized'))
-  mainWindow.on('closed', () => { mainWindow = null })
+    mainWindow.on('resize', () => saveWindowConfig('mainBounds', mainWindow.getBounds()))
+    mainWindow.on('maximize',   () => mainWindow.webContents.send('window:maximized'))
+    mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:unmaximized'))
+    mainWindow.on('closed', () => { mainWindow = null })
+
+    // Captura crash do processo de renderização sem derrubar o sistema
+    // Nota: 'crashed' está deprecated, usar 'render-process-gone'
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+      console.error(`⚠️ Renderer process crashed (reason: ${details.reason}). Recarregando...`)
+      // Espera 1 segundo e recarrega — não deixa o crash se propagar
+      setTimeout(() => {
+        try { mainWindow?.webContents.reload() } catch {}
+      }, 1000)
+    })
+
+    // Fallback para versões antigas do Electron
+    mainWindow.webContents.on('crashed', () => {
+      setTimeout(() => {
+        try { mainWindow?.webContents.reload() } catch {}
+      }, 1000)
+    })
+
+    // Captura erros não tratados
+    mainWindow.webContents.on('unresponsive', () => {
+      console.warn('⚠️ Renderer process unresponsive. Forçando reload...')
+      setTimeout(() => {
+        try { mainWindow?.webContents.reload() } catch {}
+      }, 2000)
+    })
+  } catch (err) {
+    console.error('❌ Erro ao criar janela principal:', err)
+    // Não deixa o erro derrubar o display server — apenas loga e continua
+  }
 }
 
 // ─── Janela de preview do jogo ───────────────────────────────────────────────
@@ -127,7 +210,7 @@ function openPreviewWindow(htmlContent) {
   previewWindow = new BrowserWindow({
     width: 400, height: 720,
     title: 'Kora — Testar Jogo',
-    backgroundColor: '#000',
+    backgroundColor: '#1a1c1e',
     resizable: true,
     webPreferences: {
       nodeIntegration: false,
@@ -238,6 +321,31 @@ ipcMain.handle('open-preview', async (event, htmlContent) => {
 
 ipcMain.handle('build-apk', async (event, config) => {
   return { success: false, message: 'Build APK requer configuração do ambiente Android' }
+})
+
+// ─── Captura global de erros (evita crash do display server) ─────
+// CRÍTICO: NUNCA deixe erros não tratados propagarem para o sistema.
+// No Linux, um segfault do Electron pode derrubar o X11/Wayland inteiro.
+process.on('uncaughtException', (error) => {
+  console.error('❌ [Kora] Erro não tratado capturado — não vai propagar:', error.message)
+  if (error.stack) console.error(error.stack.split('\n').slice(0, 4).join('\n'))
+  // Não chama process.exit() — apenas loga e continua.
+  // Se o processo precisar morrer, que seja limpo, não por crash.
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ [Kora] Promise rejeitada não tratada:', reason)
+})
+
+process.on('exit', (code) => {
+  console.log(`👋 [Kora] Processo encerrado com código ${code}`)
+})
+
+// CRÍTICO: SIGSEGV (segmentation fault) geralmente é o GPU process
+// quebrando. Com --in-process-gpu, isso mata só o app, não o display.
+process.on('SIGSEGV', () => {
+  console.error('❌ [Kora] SIGSEGV — crash de memória. Isso NÃO deveria')
+  console.error('   acontecer com --in-process-gpu. Reporte o bug.')
 })
 
 // ─── Ciclo de vida do app ────────────────────────────────────────────────────

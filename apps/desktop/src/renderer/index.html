@@ -9,349 +9,387 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --topbar-h: 36px;
-  --titlebar-h: 28px;
-}
-*, *::before, *::after { box-sizing: border-box; }
-body {
-  margin: 0; padding: 0;
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px;
-  background: #0f1117;
-  color: #e6edf3;
-  overflow: hidden;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  -webkit-user-select: none;
-  user-select: none;
-}
+  /* ═════════════════════════════════════════════════════════════════════
+     Kora Editor — GameMaker-Inspired Theme (inline overrides)
+     ═════════════════════════════════════════════════════════════════════ */
+  :root {
+    --topbar-h: 32px;
+    --console-h: 130px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    background: #1a1c1e;
+    color: #d4d4d4;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 
-/* ── Topbar ─────────────────────────────────────────────────────────── */
-#topbar {
-  height: var(--topbar-h);
-  background: #161b22;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  border-bottom: 1px solid #30363d;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 200;
-}
-#topbar .logo-area {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 140px;
-}
-#topbar .logo-area svg { flex-shrink: 0; }
-#topbar .app-name { font-size: 12px; font-weight: 700; color: #e6edf3; }
+  /* ── Topbar ─────────────────────────────────────────────────────── */
+  #topbar {
+    height: var(--topbar-h);
+    background: #1e2022;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    border-bottom: 1px solid #3c3e40;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 200;
+  }
+  #topbar .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 120px;
+    padding: 0 2px;
+  }
+  #topbar .logo-area svg { flex-shrink: 0; }
+  #topbar .app-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #d4d4d4;
+    letter-spacing: -0.2px;
+  }
+  #topbar .app-name .accent { color: #4a9eff; }
 
-/* ── Menu bar ────────────────────────────────────────────────────────── */
-#menu-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-  padding: 0 8px;
-}
-.menu-btn {
-  background: none;
-  border: none;
-  color: #7d8590;
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.menu-btn:hover, .menu-btn.open {
-  color: #e6edf3;
-  background: #21262d;
-}
+  /* ── Menu bar ───────────────────────────────────────────────────── */
+  #menu-nav {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    flex: 1;
+    padding: 0 4px;
+  }
+  .menu-btn {
+    background: none;
+    border: none;
+    color: #888a8c;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+    height: 22px;
+    line-height: 1;
+    font-family: inherit;
+  }
+  .menu-btn:hover, .menu-btn.open {
+    color: #d4d4d4;
+    background: #2f3133;
+  }
 
-/* ── Dropdown ────────────────────────────────────────────────────────── */
-.dropdown {
-  position: fixed;
-  background: #1c2128;
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  padding: 4px;
-  min-width: 210px;
-  z-index: 9999;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-  display: none;
-}
-.dropdown.visible { display: block; }
-.dd-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: #c9d1d9;
-  gap: 16px;
-  transition: background 0.1s;
-}
-.dd-item:hover { background: #21262d; color: #fff; }
-.dd-item .dd-kbd {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: #484f58;
-  white-space: nowrap;
-}
-.dd-item.danger { color: #f85149; }
-.dd-item.danger:hover { background: rgba(248,81,73,0.12); }
-.dd-sep { height: 1px; background: #30363d; margin: 4px 0; }
+  /* ── Dropdown ───────────────────────────────────────────────────── */
+  .dropdown {
+    position: fixed;
+    background: #2a2c2e;
+    border: 1px solid #3c3e40;
+    border-radius: 5px;
+    padding: 3px;
+    min-width: 200px;
+    z-index: 9999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    display: none;
+  }
+  .dropdown.visible { display: block; }
+  .dd-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #888a8c;
+    gap: 12px;
+    transition: all 0.12s;
+  }
+  .dd-item:hover { background: rgba(74,158,255,0.12); color: #d4d4d4; }
+  .dd-item .dd-kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: #5a5c5e;
+    white-space: nowrap;
+  }
+  .dd-item.danger { color: #f44747; }
+  .dd-item.danger:hover { background: rgba(244,71,71,0.12); }
+  .dd-sep { height: 1px; background: #333537; margin: 3px 0; }
 
-/* ── Toolbar actions ────────────────────────────────────────────────── */
-#toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 280px;
-  justify-content: flex-end;
-}
-.tb-btn {
-  background: none;
-  border: 1px solid transparent;
-  color: #7d8590;
-  border-radius: 4px;
-  padding: 3px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.tb-btn:hover { color: #e6edf3; background: #21262d; }
-.tb-btn.primary { color: #00e5a0; border-color: rgba(0,229,160,0.4); }
-.tb-btn.primary:hover { background: rgba(0,229,160,0.12); border-color: #00e5a0; }
-.tb-btn.play {
-  color: #0f1117;
-  background: #00e5a0;
-  border-color: #00e5a0;
-  font-weight: 600;
-}
-.tb-btn.play:hover { background: #00c98e; border-color: #00c98e; }
+  /* ── Toolbar actions ────────────────────────────────────────────── */
+  #toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: auto;
+    justify-content: flex-end;
+  }
+  .tb-btn {
+    background: none;
+    border: none;
+    color: #888a8c;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+    height: 22px;
+    line-height: 1;
+  }
+  .tb-btn:hover { color: #d4d4d4; background: #2f3133; }
+  .tb-btn.primary { color: #4a9eff; }
+  .tb-btn.primary:hover { background: rgba(74,158,255,0.12); }
+  .tb-btn.play {
+    color: #fff;
+    background: #4a9eff;
+    font-weight: 600;
+    padding: 2px 10px;
+  }
+  .tb-btn.play:hover { background: #6aaaef; }
+  .tb-sep {
+    width: 1px; height: 16px;
+    background: #3c3e40; margin: 0 4px;
+    flex-shrink: 0;
+  }
 
-/* ── Workspace ─────────────────────────────────────────────────────── */
-#workspace {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 260px 1fr 300px;
-  overflow: hidden;
-}
+  /* ── Workspace ──────────────────────────────────────────────────── */
+  #workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 240px 1fr 280px;
+    overflow: hidden;
+  }
 
-/* ── Panels ────────────────────────────────────────────────────────── */
-.panel {
-  background: #161b22;
-  border-right: 1px solid #30363d;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.panel:last-child { border-right: none; border-left: 1px solid #30363d; }
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #7d8590;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  border-bottom: 1px solid #30363d;
-  flex-shrink: 0;
-}
-.panel-icon-btn {
-  background: none; border: none;
-  color: #7d8590; cursor: pointer;
-  font-size: 15px; width: 20px; height: 20px;
-  border-radius: 4px; display: grid; place-items: center;
-}
-.panel-icon-btn:hover { color: #e6edf3; background: #21262d; }
+  /* ── Panels ─────────────────────────────────────────────────────── */
+  .panel {
+    background: #242628;
+    border-right: 1px solid #3c3e40;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel:last-child { border-right: none; border-left: 1px solid #3c3e40; }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #888a8c;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid #333537;
+    flex-shrink: 0;
+    background: #242628;
+    min-height: 26px;
+  }
+  .panel-icon-btn {
+    background: none; border: none;
+    color: #888a8c; cursor: pointer;
+    font-size: 14px; width: 18px; height: 18px;
+    border-radius: 3px; display: grid; place-items: center;
+    transition: all 0.12s;
+  }
+  .panel-icon-btn:hover { color: #d4d4d4; background: #2f3133; }
 
-/* ── Hierarchy ─────────────────────────────────────────────────────── */
-.hierarchy-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
-.hierarchy-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 10px; cursor: pointer;
-  border-left: 2px solid transparent;
-  font-size: 12px;
-}
-.hierarchy-item:hover { background: #21262d; }
-.hierarchy-item.selected { background: rgba(0,229,160,0.1); border-left-color: #00e5a0; color: #00e5a0; }
-.entity-icon { font-size: 11px; opacity: 0.6; }
-.entity-name { flex: 1; }
-.entity-visibility { opacity: 0; background: none; border: none; cursor: pointer; color: #484f58; font-size: 11px; }
-.hierarchy-item:hover .entity-visibility,
-.hierarchy-item.selected .entity-visibility { opacity: 1; }
+  /* ── Hierarchy ──────────────────────────────────────────────────── */
+  .hierarchy-list { list-style: none; margin: 0; padding: 2px 0; overflow-y: auto; flex: 1; }
+  .hierarchy-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; cursor: pointer;
+    border-left: 2px solid transparent;
+    font-size: 12px; transition: all 0.12s;
+  }
+  .hierarchy-item:hover { background: #2f3133; }
+  .hierarchy-item.selected { background: rgba(74,158,255,0.12); border-left-color: #4a9eff; color: #4a9eff; }
+  .entity-icon { font-size: 10px; opacity: 0.5; width: 14px; text-align: center; }
+  .entity-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entity-visibility {
+    opacity: 0; background: none; border: none; cursor: pointer;
+    color: #888a8c; font-size: 10px;
+    transition: opacity 0.12s;
+  }
+  .hierarchy-item:hover .entity-visibility,
+  .hierarchy-item.selected .entity-visibility { opacity: 0.6; }
+  .entity-visibility:hover { opacity: 1 !important; }
 
-/* ── Viewport ──────────────────────────────────────────────────────── */
-#main-content {
-  display: flex;
-  flex-direction: column;
-  background: #0f1117;
-  overflow: hidden;
-  position: relative;
-}
-.viewport-toolbar {
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 8px;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
-  flex-shrink: 0;
-}
-.vp-tool {
-  background: none; border: 1px solid transparent;
-  color: #7d8590; border-radius: 4px;
-  width: 26px; height: 26px;
-  display: grid; place-items: center;
-  cursor: pointer; font-size: 13px;
-}
-.vp-tool:hover { background: #21262d; color: #e6edf3; }
-.vp-tool.active { background: rgba(0,229,160,0.12); color: #00e5a0; border-color: rgba(0,229,160,0.5); }
-.vp-sep { width: 1px; height: 18px; background: #30363d; margin: 0 2px; }
-.vp-info { font-size: 11px; color: #484f58; font-family: 'JetBrains Mono', monospace; }
-#scene-canvas { flex: 1; display: block; cursor: crosshair; }
+  /* ── Viewport ───────────────────────────────────────────────────── */
+  #main-content {
+    display: flex;
+    flex-direction: column;
+    background: #1a1c1e;
+    overflow: hidden;
+    position: relative;
+  }
+  .viewport-toolbar {
+    display: flex; align-items: center; gap: 3px;
+    padding: 3px 8px;
+    background: #1e2022;
+    border-bottom: 1px solid #333537;
+    flex-shrink: 0;
+  }
+  .vp-tool {
+    background: none; border: 1px solid transparent;
+    color: #888a8c; border-radius: 3px;
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    cursor: pointer; font-size: 12px;
+    transition: all 0.12s;
+  }
+  .vp-tool:hover { background: #2f3133; color: #d4d4d4; }
+  .vp-tool.active { background: rgba(74,158,255,0.12); color: #4a9eff; border-color: #4a9eff; }
+  .vp-sep { width: 1px; height: 16px; background: #3c3e40; margin: 0 3px; }
+  .vp-info { font-size: 10px; color: #5a5c5e; font-family: 'JetBrains Mono', monospace; }
+  #scene-canvas { flex: 1; display: block; cursor: crosshair; }
 
-/* ── Assets tab ────────────────────────────────────────────────────── */
-.tab-pane { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-.assets-toolbar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 8px; background: #161b22;
-  border-bottom: 1px solid #30363d; flex-shrink: 0;
-}
-.assets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-  gap: 6px; padding: 8px;
-  overflow-y: auto; flex: 1;
-}
-.asset-card {
-  position: relative;
-  background: #1c2128; border: 1px solid #30363d;
-  border-radius: 6px; padding: 6px 4px;
-  display: flex; flex-direction: column;
-  align-items: center; gap: 4px; cursor: grab;
-}
-.asset-card:hover { border-color: #00e5a0; }
-.asset-thumb { width: 52px; height: 52px; border-radius: 4px; overflow: hidden; background: #21262d; display: flex; align-items: center; justify-content: center; }
-.asset-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.asset-label { font-size: 10px; color: #7d8590; text-align: center; word-break: break-all; max-width: 100%; }
-.asset-delete {
-  position: absolute; top: 3px; right: 3px;
-  background: #f85149; color: white; border: none;
-  border-radius: 3px; width: 16px; height: 16px;
-  display: grid; place-items: center; cursor: pointer;
-  opacity: 0; font-size: 11px;
-}
-.asset-card:hover .asset-delete { opacity: 1; }
+  /* ── Assets tab ─────────────────────────────────────────────────── */
+  .tab-pane { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .assets-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; background: #242628;
+    border-bottom: 1px solid #333537; flex-shrink: 0;
+  }
+  .assets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 6px; padding: 8px;
+    overflow-y: auto; flex: 1;
+  }
+  .asset-card {
+    position: relative;
+    background: #2f3133; border: 1px solid #3c3e40;
+    border-radius: 5px; padding: 6px 4px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 3px; cursor: grab;
+  }
+  .asset-card:hover { border-color: #4a9eff; background: rgba(74,158,255,0.08); }
+  .asset-thumb { width: 48px; height: 48px; border-radius: 3px; overflow: hidden; background: #2a2c2e; display: flex; align-items: center; justify-content: center; }
+  .asset-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .asset-label { font-size: 9px; color: #888a8c; text-align: center; word-break: break-all; max-width: 100%; line-height: 1.3; }
+  .asset-delete {
+    position: absolute; top: 2px; right: 2px;
+    background: none; border: none; color: #5a5c5e;
+    border-radius: 3px; width: 16px; height: 16px;
+    display: grid; place-items: center; cursor: pointer;
+    opacity: 0; font-size: 12px; transition: all 0.12s;
+  }
+  .asset-card:hover .asset-delete { opacity: 1; }
+  .asset-delete:hover { color: #f44747; background: rgba(244,71,71,0.12); }
 
-/* ── Inspector ─────────────────────────────────────────────────────── */
-.inspector-body { padding: 10px; overflow-y: auto; flex: 1; -webkit-user-select: text; user-select: text; }
-.inspector-section { margin-bottom: 14px; }
-.inspector-section-title {
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  color: #484f58; margin-bottom: 6px;
-}
-.prop-row { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 4px; margin-bottom: 4px; }
-.prop-label { font-size: 12px; color: #7d8590; }
-.prop-input {
-  background: #21262d; border: 1px solid #30363d;
-  color: #e6edf3; border-radius: 4px;
-  padding: 3px 7px; font-size: 12px; width: 100%;
-}
-.prop-input:focus { outline: none; border-color: #00e5a0; }
-.prop-color { width: 100%; height: 28px; border-radius: 4px; border: 1px solid #30363d; cursor: pointer; padding: 2px; }
-.prop-checkbox { width: 14px; height: 14px; }
-.script-area {
-  width: 100%; min-height: 100px;
-  background: #0f1117; border: 1px solid #30363d;
-  color: #e6edf3; border-radius: 4px; padding: 6px;
-  font-family: 'JetBrains Mono', monospace; font-size: 11px; resize: vertical;
-  -webkit-user-select: text; user-select: text;
-}
-.inspector-empty { color: #484f58; font-size: 12px; text-align: center; margin-top: 32px; }
+  /* ── Inspector ──────────────────────────────────────────────────── */
+  .inspector-body { padding: 10px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .inspector-section { margin-bottom: 0; }
+  .inspector-section-title {
+    font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    color: #888a8c; margin-bottom: 4px;
+    padding-bottom: 2px; border-bottom: 1px solid #333537;
+  }
+  .prop-row { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 4px; margin-bottom: 3px; }
+  .prop-label { font-size: 11px; color: #888a8c; }
+  .prop-input {
+    background: #2f3133; border: 1px solid #3c3e40;
+    color: #d4d4d4; border-radius: 3px;
+    padding: 2px 6px; font-size: 11px; width: 100%;
+    height: 22px; transition: border-color 0.12s;
+  }
+  .prop-input:focus { outline: none; border-color: #4a9eff; }
+  .prop-color { width: 100%; height: 24px; border-radius: 3px; border: 1px solid #3c3e40; cursor: pointer; padding: 1px; }
+  .prop-checkbox { width: 13px; height: 13px; accent-color: #4a9eff; }
+  .script-area {
+    width: 100%; min-height: 100px;
+    background: #1a1c1e; border: 1px solid #3c3e40;
+    color: #d4d4d4; border-radius: 3px; padding: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; resize: vertical;
+    line-height: 1.5;
+  }
+  .script-area:focus { outline: none; border-color: #4a9eff; }
+  .inspector-empty { color: #5a5c5e; font-size: 12px; text-align: center; margin-top: 24px; }
 
-/* ── Console ────────────────────────────────────────────────────────── */
-#console {
-  height: 130px;
-  background: #161b22; border-top: 1px solid #30363d;
-  display: flex; flex-direction: column; flex-shrink: 0;
-}
-#console-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 3px 10px;
-  font-size: 10px; font-weight: 700; color: #484f58;
-  text-transform: uppercase; letter-spacing: 0.5px;
-  border-bottom: 1px solid #30363d; flex-shrink: 0;
-}
-#console-body {
-  flex: 1; overflow-y: auto; padding: 3px 10px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; line-height: 1.7;
-}
-.log-info  { color: #8b949e; }
-.log-ok    { color: #00e5a0; }
-.log-warn  { color: #e3b341; }
-.log-error { color: #f85149; }
+  /* ── Console ─────────────────────────────────────────────────────── */
+  #console {
+    height: var(--console-h);
+    background: #242628; border-top: 1px solid #3c3e40;
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  #console-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 3px 10px;
+    font-size: 10px; font-weight: 600; color: #888a8c;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid #333537; flex-shrink: 0;
+    background: #242628; min-height: 24px;
+  }
+  #console-body {
+    flex: 1; overflow-y: auto; padding: 3px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; line-height: 1.6;
+    background: #1a1c1e;
+  }
+  .log-info  { color: #888a8c; }
+  .log-ok    { color: #1ea55e; }
+  .log-warn  { color: #cca700; }
+  .log-error { color: #f44747; }
 
-/* ── Modal ──────────────────────────────────────────────────────────── */
-.modal-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: grid; place-items: center; z-index: 1000;
-}
-.modal {
-  background: #1c2128; border: 1px solid #30363d;
-  border-radius: 10px; width: 380px; max-width: 90vw;
-}
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; font-weight: 600; font-size: 13px;
-  border-bottom: 1px solid #30363d;
-}
-.modal-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-.modal-body label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #7d8590; }
-.modal-input {
-  background: #21262d; border: 1px solid #30363d; color: #e6edf3;
-  border-radius: 4px; padding: 6px 10px; font-size: 13px; width: 100%;
-}
-.modal-input:focus { outline: none; border-color: #00e5a0; }
-.modal-select { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; padding: 6px 10px; font-size: 13px; width: 100%; }
-.modal-footer {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 10px 14px; border-top: 1px solid #30363d;
-}
+  /* ── Modal ───────────────────────────────────────────────────────── */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: grid; place-items: center; z-index: 1000;
+  }
+  .modal {
+    background: #2a2c2e; border: 1px solid #3c3e40;
+    border-radius: 8px; width: 360px; max-width: 90vw;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; font-weight: 600; font-size: 12px;
+    border-bottom: 1px solid #333537;
+  }
+  .modal-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .modal-body label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #888a8c; }
+  .modal-input {
+    background: #2f3133; border: 1px solid #3c3e40; color: #d4d4d4;
+    border-radius: 3px; padding: 5px 8px; font-size: 12px; width: 100%;
+  }
+  .modal-input:focus { outline: none; border-color: #4a9eff; }
+  .modal-select { background: #2f3133; border: 1px solid #3c3e40; color: #d4d4d4; border-radius: 3px; padding: 5px 8px; font-size: 12px; width: 100%; }
+  .modal-footer {
+    display: flex; justify-content: flex-end; gap: 6px;
+    padding: 10px 14px; border-top: 1px solid #333537;
+  }
 
-/* ── Toast ──────────────────────────────────────────────────────────── */
-#toast {
-  position: fixed; bottom: 148px; left: 50%;
-  transform: translateX(-50%);
-  background: #1c2128; border: 1px solid #30363d;
-  color: #00e5a0; border-radius: 6px;
-  padding: 7px 16px; font-size: 12px; z-index: 2000;
-  pointer-events: none;
-}
+  /* ── Toast ───────────────────────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 150px; left: 50%;
+    transform: translateX(-50%);
+    background: #2a2c2e; border: 1px solid #3c3e40;
+    color: #4a9eff; border-radius: 5px;
+    padding: 6px 16px; font-size: 11px; z-index: 2000;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
 
-/* ── Scrollbar ──────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #30363d; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #484f58; }
+  /* ── Scrollbar ───────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3c3e40; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #5a5c5e; }
 
-@media (max-width: 1200px) {
-  #workspace { grid-template-columns: 220px 1fr 260px; }
-}
+  @media (max-width: 1200px) {
+    #workspace { grid-template-columns: 200px 1fr 240px; }
+  }
 </style>
 </head>
 <body>
@@ -359,18 +397,20 @@ body {
 <!-- ── Topbar ─────────────────────────────────────────────────────── -->
 <div id="topbar">
   <div class="logo-area">
-    <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-      <polygon points="6,26 16,6 26,26" stroke="#00e5a0" stroke-width="2"/>
-      <line x1="10" y1="20" x2="22" y2="20" stroke="#00e5a0" stroke-width="2"/>
+    <!-- GameMaker-inspired triangle logo -->
+    <svg class="logo-icon" width="16" height="16" viewBox="0 0 32 32" fill="none">
+      <polygon points="2,28 16,2 30,28" fill="#4a9eff" fill-opacity="0.15" stroke="#4a9eff" stroke-width="2.5" stroke-linejoin="round"/>
+      <polygon points="10,24 16,10 22,24" fill="#4a9eff" fill-opacity="0.25" stroke="#4a9eff" stroke-width="1.5" stroke-linejoin="round"/>
     </svg>
-    <span class="app-name">Kora Editor</span>
+    <span class="app-name"><span class="accent">Kora</span> Editor</span>
   </div>
 
-  <!-- Menus funcionais -->
+  <!-- Menus estilo GameMaker -->
   <nav id="menu-nav">
     <button class="menu-btn" data-menu="file">Arquivo</button>
     <button class="menu-btn" data-menu="edit">Editar</button>
     <button class="menu-btn" data-menu="view">Exibir</button>
+    <button class="menu-btn" data-menu="game">Jogo</button>
     <button class="menu-btn" data-menu="help">Ajuda</button>
   </nav>
 
@@ -379,8 +419,8 @@ body {
     <button class="tb-btn" id="btn-new" title="Nova cena (Ctrl+N)">+ Nova</button>
     <button class="tb-btn" id="btn-open" title="Abrir (Ctrl+O)">Abrir</button>
     <button class="tb-btn" id="btn-save" title="Salvar (Ctrl+S)">Salvar</button>
-    <div style="width:1px;height:18px;background:#30363d;margin:0 2px"></div>
-    <button class="tb-btn play" id="btn-play" title="Testar Jogo (F5)">▶ Testar</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn play" id="btn-play" title="Testar Jogo (F5)">▶ Executar</button>
   </div>
 </div>
 
@@ -391,9 +431,6 @@ body {
   <div class="dd-item" data-action="open">   Abrir Cena...     <span class="dd-kbd">Ctrl+O</span></div>
   <div class="dd-item" data-action="save">   Salvar Cena       <span class="dd-kbd">Ctrl+S</span></div>
   <div class="dd-item" data-action="saveas"> Salvar Como...    <span class="dd-kbd">Ctrl+Shift+S</span></div>
-  <div class="dd-sep"></div>
-  <div class="dd-item" data-action="exportks">Exportar KScript  <span class="dd-kbd">Ctrl+E</span></div>
-  <div class="dd-item" data-action="exportapk">Exportar APK...  <span class="dd-kbd"></span></div>
   <div class="dd-sep"></div>
   <div class="dd-item danger" data-action="quit">Sair             <span class="dd-kbd">Ctrl+Q</span></div>
 </div>
@@ -415,6 +452,14 @@ body {
   <div class="dd-item" data-action="zoom-fit">   Encaixar           <span class="dd-kbd">Ctrl+0</span></div>
   <div class="dd-sep"></div>
   <div class="dd-item" data-action="devtools">   DevTools           <span class="dd-kbd">F12</span></div>
+</div>
+
+<div class="dropdown" id="dd-game">
+  <div class="dd-item" data-action="play">       Executar Jogo      <span class="dd-kbd">F5</span></div>
+  <div class="dd-item" data-action="stop">       Parar Preview      <span class="dd-kbd">F6</span></div>
+  <div class="dd-sep"></div>
+  <div class="dd-item" data-action="exportapk">  Exportar APK...    <span class="dd-kbd"></span></div>
+  <div class="dd-item" data-action="exportks">   Exportar KScript   <span class="dd-kbd">Ctrl+E</span></div>
 </div>
 
 <div class="dropdown" id="dd-help">
@@ -553,7 +598,7 @@ const state = {
 // Menus dropdown
 // ═══════════════════════════════════════════════════════════════════════════
 const menuMap = {
-  file: 'dd-file', edit: 'dd-edit', view: 'dd-view', help: 'dd-help'
+  file: 'dd-file', edit: 'dd-edit', view: 'dd-view', game: 'dd-game', help: 'dd-help'
 }
 
 function closeAllMenus() {
@@ -591,8 +636,11 @@ function handleMenuAction(action) {
     case 'save':      saveScene(); break
     case 'saveas':    saveScene(true); break
     case 'exportks':  exportKScript(); break
-    case 'exportapk': log('Build APK será integrado com o Go build system.', 'warn'); showToast('ℹ️ APK em breve'); break
+    case 'exportapk': log('Build APK será integrado com o Go build system.', 'warn'); showToast('APK em breve'); break
     case 'quit':      window.close(); break
+    // Jogo
+    case 'play':      playGame(); break
+    case 'stop':      log('Fecha a janela de preview manualmente.', 'info'); break
     // Editar
     case 'undo':      document.execCommand('undo'); break
     case 'redo':      document.execCommand('redo'); break
@@ -608,7 +656,7 @@ function handleMenuAction(action) {
     // Ajuda
     case 'docs':    app.openExternal?.('https://github.com/ElioNeto/kora'); break
     case 'issues':  app.openExternal?.('https://github.com/ElioNeto/kora/issues'); break
-    case 'about':   showToast('△ Kora Editor v0.1.0 — MIT'); break
+    case 'about':   showToast('Kora Editor v0.1.0 — MIT'); break
   }
 }
 
@@ -625,6 +673,7 @@ if (app.on) {
   app.on('menu:open-scene',  () => openScene())
   app.on('menu:save-scene',  () => saveScene())
   app.on('menu:export-ks',   () => exportKScript())
+  app.on('menu:play',        () => playGame())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -636,7 +685,7 @@ function newScene() {
   state.meta = { name: 'Untitled', version: 1, logicalW: LOGICAL_W, logicalH: LOGICAL_H }
   buildHierarchy(); deselectAll(); render()
   log('Nova cena criada.')
-  showToast('✅ Nova cena')
+  showToast('Nova cena')
 }
 
 async function openScene() {
@@ -651,7 +700,7 @@ async function openScene() {
     state.meta = data.meta || state.meta
     state.idSeq = (state.entities.reduce((m, e) => Math.max(m, e.id), 0) || 0) + 1
     buildHierarchy(); deselectAll(); render()
-    log('Cena carregada: ' + state.meta.name); showToast('✅ Cena carregada')
+    log('Cena carregada: ' + state.meta.name); showToast('Cena carregada')
   } catch (err) { log('Erro JSON: ' + err.message, 'error') }
 }
 
@@ -659,10 +708,10 @@ async function saveScene(forceDialog = false) {
   if (!app.saveScene) return log('API de save indisponível', 'warn')
   const sceneData = JSON.stringify({ meta: state.meta, entities: state.entities }, null, 2)
   const result = await app.saveScene(sceneData, `${state.meta.name || 'cena'}.kora.json`)
-  if (result?.success) {
-    state.dirty = false; render()
-    log('Cena salva: ' + result.filePath); showToast('✅ Salvo!')
-  }
+    if (result?.success) {
+      state.dirty = false; render()
+      log('Cena salva: ' + result.filePath); showToast('Salvo!')
+    }
 }
 
 function exportKScript() {
@@ -683,7 +732,7 @@ function exportKScript() {
   a.href = URL.createObjectURL(blob)
   a.download = `${state.meta.name || 'game'}.ks`
   a.click()
-  log('KScript exportado.'); showToast('📄 KScript exportado')
+  log('KScript exportado.'); showToast('KScript exportado')
 }
 
 function duplicateSelected() {
@@ -716,11 +765,11 @@ function buildGameHTML() {
 <title>${state.meta.name} — Kora Preview</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; background: #0f1117; overflow: hidden; }
+  html, body { width: 100%; height: 100%; background: #1a1c1e; overflow: hidden; }
   canvas { display: block; touch-action: none; }
   #overlay {
     position: fixed; top: 8px; right: 8px;
-    background: rgba(0,0,0,0.6); color: #00e5a0;
+    background: rgba(0,0,0,0.6); color: #4a9eff;
     border-radius: 4px; padding: 4px 10px;
     font-family: monospace; font-size: 11px; pointer-events: none;
   }
@@ -851,7 +900,7 @@ function update(dt) {
 // ── Draw ─────────────────────────────────────────────────────────────
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0f1117';
+  ctx.fillStyle = '#1a1c1e';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
@@ -889,7 +938,7 @@ function playGame() {
   if (app.openPreview) {
     app.openPreview(html)
     log('Jogo aberto na janela de preview.', 'ok')
-    showToast('▶ Testando jogo...')
+    showToast('Executando jogo...')
   } else {
     // Fallback: abre no navegador via blob
     const blob = new Blob([html], { type: 'text/html' })
@@ -951,7 +1000,7 @@ function render() {
   const [ox, oy] = worldToScreen(-LOGICAL_W/2, -LOGICAL_H/2)
   const pw = LOGICAL_W * state.cam.zoom, ph = LOGICAL_H * state.cam.zoom
   ctx.save()
-  ctx.strokeStyle = 'rgba(0,229,160,0.25)'; ctx.lineWidth = 1
+  ctx.strokeStyle = 'rgba(74,158,255,0.25)'; ctx.lineWidth = 1
   ctx.strokeRect(ox, oy, pw, ph)
   ctx.fillStyle = 'rgba(0,0,0,0.3)'
   ctx.fillRect(ox, oy, pw, ph)
@@ -968,7 +1017,9 @@ function drawGrid() {
   const STEP = 32 * state.cam.zoom
   const offX = (canvas.width/2  + state.cam.x * state.cam.zoom) % STEP
   const offY = (canvas.height/2 + state.cam.y * state.cam.zoom) % STEP
-  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1
+  ctx.save()
+  // Grid menor (GameMaker-style subtle grid)
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1
   for (let x = offX; x < canvas.width; x += STEP)  { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke() }
   for (let y = offY; y < canvas.height; y += STEP) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke() }
   ctx.restore()
@@ -1002,9 +1053,9 @@ function drawSelection(e) {
   const [sx, sy] = worldToScreen(e.x, e.y)
   const sw = e.w * state.cam.zoom, sh = e.h * state.cam.zoom
   ctx.save(); ctx.translate(sx, sy); ctx.rotate(e.rotation * Math.PI / 180)
-  ctx.strokeStyle = '#00e5a0'; ctx.lineWidth = 2
+  ctx.strokeStyle = '#4a9eff'; ctx.lineWidth = 2
   ctx.setLineDash([4, 3]); ctx.strokeRect(-sw/2-2, -sh/2-2, sw+4, sh+4); ctx.setLineDash([])
-  ctx.fillStyle = '#00e5a0'
+  ctx.fillStyle = '#4a9eff'
   for (const [hx,hy] of [[-sw/2-2,-sh/2-2],[0,-sh/2-2],[sw/2+2,-sh/2-2],[sw/2+2,0],[sw/2+2,sh/2+2],[0,sh/2+2],[-sw/2-2,sh/2+2],[-sw/2-2,0]]) {
     ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI*2); ctx.fill()
   }
@@ -1017,7 +1068,7 @@ function drawSelection(e) {
 function getEntity(id) { return state.entities.find(e => e.id === id) }
 function nextId() { return state.idSeq++ }
 function randomColor() {
-  return ['#00e5a0','#388bfd','#e3b341','#f85149','#bc8cff','#ff7b72','#79c0ff'][Math.floor(Math.random()*7)]
+  return ['#4a9eff','#1ea55e','#cca700','#f44747','#b47cff','#ff7b72','#6dd5ed'][Math.floor(Math.random()*7)]
 }
 function createEntity(name, type) {
   return { id: nextId(), name, type, x: 0, y: 0, w: 48, h: 48, rotation: 0, visible: true, locked: false, color: randomColor(), script: '', assetUrl: null }
@@ -1027,14 +1078,14 @@ function createEntity(name, type) {
 // Hierarquia
 // ═══════════════════════════════════════════════════════════════════════════
 const hierarchyEl = document.getElementById('hierarchy-list')
-const ICONS = { sprite: '🟦', tilemap: '🔲', camera: '📷', audio: '🔊', custom: '⬡' }
+const ICONS = { sprite: '◆', tilemap: '▣', camera: '◎', audio: '♪', custom: '◇' }
 
 function buildHierarchy() {
   hierarchyEl.innerHTML = ''
   state.entities.forEach(e => {
     const li = document.createElement('li')
     li.className = `hierarchy-item${e.id === state.selected ? ' selected' : ''}`
-    li.innerHTML = `<span class="entity-icon">${ICONS[e.type]||'⬡'}</span><span class="entity-name">${e.name}</span><button class="entity-visibility">${e.visible?'👁':'🚫'}</button>`
+    li.innerHTML = `<span class="entity-icon">${ICONS[e.type]||'◇'}</span><span class="entity-name">${e.name}</span><button class="entity-visibility">${e.visible?'◉':'◎'}</button>`
     li.onclick = ev => {
       if (ev.target.classList.contains('entity-visibility')) { e.visible=!e.visible; state.dirty=true; buildHierarchy(); render(); return }
       selectEntity(e.id)
@@ -1281,9 +1332,9 @@ window.addEventListener('keydown', ev => {
 // Init
 // ═══════════════════════════════════════════════════════════════════════════
 function seedScene() {
-  const player = createEntity('Player', 'sprite'); player.x=0; player.y=60; player.color='#00e5a0'
-  const ground = createEntity('Ground', 'tilemap'); ground.x=0; ground.y=240; ground.w=340; ground.h=24; ground.color='#388bfd'
-  const cam = createEntity('MainCamera', 'camera'); cam.x=0; cam.y=0; cam.w=32; cam.h=32; cam.color='#e3b341'
+  const player = createEntity('Player', 'sprite'); player.x=0; player.y=60; player.color='#4a9eff'
+  const ground = createEntity('Ground', 'tilemap'); ground.x=0; ground.y=240; ground.w=340; ground.h=24; ground.color='#1ea55e'
+  const cam = createEntity('MainCamera', 'camera'); cam.x=0; cam.y=0; cam.w=32; cam.h=32; cam.color='#cca700'
   state.entities.push(player, ground, cam)
   buildHierarchy()
   log('Cena de exemplo carregada.')

@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'menu:open-scene',
       'menu:save-scene',
       'menu:export-ks',
+      'menu:export-apk',
+      'menu:play',
       'window:maximized',
       'window:unmaximized'
     ]
