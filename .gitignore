@@ -1,6 +1,9 @@
 # Build artifacts
 bin/
 dist/
+hello
+kora-editor
+cmd/kora-editor/kora-editor
 dist-electron/
 android/app/build/
 android/.gradle/

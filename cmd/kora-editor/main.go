@@ -36,8 +36,10 @@ type SceneEntity struct {
 	ID       int            `json:"id"`
 	Name     string         `json:"name"`
 	Type     string         `json:"type"`
-	X, Y     float64        `json:"x"`
-	W, H     float64        `json:"w"`
+	X        float64        `json:"x"`
+	Y        float64        `json:"y"`
+	W        float64        `json:"w"`
+	H        float64        `json:"h"`
 	Rotation float64        `json:"rotation,omitempty"`
 	Color    string         `json:"color,omitempty"`
 	Visible  bool           `json:"visible"`
@@ -123,6 +125,7 @@ const (
 	TabCode
 	TabPreview
 	TabAnim // Animation timeline
+	TabSprite // Sprite editor
 )
 
 type Tool int
@@ -221,6 +224,9 @@ type Editor struct {
 
 	// ── Phase 1: Camera Gizmo ──
 	showCameraGizmo bool // show camera frustum in viewport
+
+	// ── Phase 2: Sprite Editor ──
+	spriteEditor *editor.SpriteEditorState
 }
 
 func NewEditor() *Editor {
@@ -279,6 +285,9 @@ func NewEditor() *Editor {
 		e.Logf("Hot-Reload: %s compilado com sucesso", filepath.Base(path))
 		return nil
 	})
+
+	// Configura sprite editor
+	e.spriteEditor = editor.NewSpriteEditorState()
 
 	return e
 }
@@ -515,6 +524,27 @@ func (app *EditorApp) Update() error {
 		}
 	}
 
+	// ── Phase 2: Sprite Editor ──
+	if inpututil.IsKeyJustPressed(ebiten.KeyF10) {
+		if e.activeTab == TabSprite {
+			e.activeTab = TabScene
+		} else {
+			e.activeTab = TabSprite
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyI) && isCtrlHeld() {
+		if e.activeTab == TabSprite {
+			// Import sprite via file dialog
+			e.Log("Sprite Editor: importe uma imagem arrastando para a janela")
+			// No file dialog without external deps — use a test sprite for now
+			ses := e.spriteEditor
+			// Create a placeholder sprite for demonstration
+			ses.Resource = editor.NewSingleSprite("NovoSprite", "placeholder.png", 64, 64)
+			ses.PushSpriteUndo()
+			e.Logf("Sprite criado: NovoSprite (64x64)")
+		}
+	}
+
 	// ── Phase 1: Hot-Reload toggle ──
 	if inpututil.IsKeyJustPressed(ebiten.KeyF7) {
 		if e.hotReload.IsEnabled() {
@@ -572,8 +602,9 @@ func (app *EditorApp) Update() error {
 		{590, 28, "tool_select", "Selecionar (1)"},
 		{620, 28, "tool_move", "Mover (2)"},
 		{650, 28, "tool_scale", "Escalar (3)"},
-		{700, 36, "play", "Play (F8)"},
-		{740, 36, "hotreload", "Hot-Reload (F7)"},
+		{692, 36, "sprite_editor", "Sprite Editor (F10)"},
+		{732, 36, "play", "Play (F8)"},
+		{772, 36, "hotreload", "Hot-Reload (F7)"},
 	}
 	for _, item := range tbItems {
 		if mx >= item.x && mx <= item.x+item.w && my >= btnY && my <= btnY+btnH {
@@ -791,6 +822,11 @@ func (app *EditorApp) Draw(screen *ebiten.Image) {
 		e.drawTimeline(screen)
 	}
 
+	// 3b. Sprite editor panel
+	if e.activeTab == TabSprite {
+		e.drawSpriteEditor(screen)
+	}
+
 	// 4. Play mode overlay
 	e.drawPlayModeOverlay(screen)
 
@@ -862,6 +898,7 @@ func (e *Editor) drawToolbar(screen *ebiten.Image) {
 		{420, "▶ Cena", TabScene, "tab_scene"},
 		{480, "Assets", TabAssets, "tab_assets"},
 		{540, "Script", TabCode, "tab_script"},
+		{598, "Sprite", TabSprite, "tab_sprite"},
 	}
 	for _, tab := range tabs {
 		col := e.textMuted
@@ -1505,6 +1542,151 @@ func (e *Editor) drawHotReloadStatus(screen *ebiten.Image) {
 				float64(e.screenW())/2, cy+4, 0.6, color.RGBA{0x1e, 0xa5, 0x5e, 0xcc})
 		}
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Sprite Editor Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (e *Editor) drawSpriteEditor(screen *ebiten.Image) {
+	se := e.spriteEditor
+	vpX, vpY, vpW, vpH := e.viewportRect()
+
+	// Panel background
+	fillRect(screen, vpX, vpY, vpW, vpH, e.bgDark)
+
+	// Left sidebar: tool options
+	sidebarW := 160.0
+	fillRect(screen, vpX, vpY, sidebarW, vpH, e.bgPanel)
+	fillRect(screen, vpX+sidebarW, vpY, 1, vpH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff})
+
+	drawTextS(screen, "SPRITE EDITOR", vpX+8, vpY+8, 0.75, e.accent)
+	drawTextS(screen, "F10: fechar", vpX+8, vpY+22, 0.6, e.textFaint)
+
+	if se.Resource == nil {
+		// No sprite loaded
+		drawTextS(screen, "Nenhum sprite carregado", vpX+sidebarW+20, vpY+40, 0.8, e.textMuted)
+		drawTextS(screen, "Arraste uma imagem PNG/JPEG", vpX+sidebarW+20, vpY+60, 0.7, e.textFaint)
+		drawTextS(screen, "ou use Ctrl+I para importar", vpX+sidebarW+20, vpY+76, 0.7, e.textFaint)
+		return
+	}
+
+	r := se.Resource
+
+	// Sidebar tools
+	y := vpY + 44
+	drawTextS(screen, "ARQUIVO", vpX+8, y, 0.65, e.textMuted)
+	y += 18
+	drawTextS(screen, r.Name, vpX+12, y, 0.7, e.textPrimary)
+	y += 16
+	drawTextS(screen, fmt.Sprintf("%dx%d px", r.SrcWidth, r.SrcHeight), vpX+12, y, 0.6, e.textFaint)
+	y += 16
+	drawTextS(screen, string(r.Type), vpX+12, y, 0.6, e.accent)
+	y += 22
+
+	drawTextS(screen, "FRAMES", vpX+8, y, 0.65, e.textMuted)
+	y += 18
+	drawTextS(screen, fmt.Sprintf("%d frames", r.FrameCount()), vpX+12, y, 0.7, e.textPrimary)
+	y += 16
+	drawTextS(screen, fmt.Sprintf("Grid: %dx%d", r.GridCols, r.GridRows), vpX+12, y, 0.6, e.textFaint)
+	y += 22
+
+	drawTextS(screen, "PIVOT", vpX+8, y, 0.65, e.textMuted)
+	y += 18
+	drawTextS(screen, fmt.Sprintf("(%.2f, %.2f)", r.PivotX, r.PivotY), vpX+12, y, 0.7, e.textPrimary)
+	y += 16
+	pivotPresets := []string{"center", "tl", "tc", "tr", "bl", "bc", "br"}
+	for i, p := range pivotPresets {
+		px := vpX + 12 + float64(i%4)*34
+		py := y + float64(i/4)*20
+		col := e.textMuted
+		if (i == 0 && r.PivotX == 0.5 && r.PivotY == 0.5) ||
+			(i == 1 && r.PivotX == 0 && r.PivotY == 0) {
+			col = e.accent
+		}
+		drawTextS(screen, p, px, py, 0.55, col)
+	}
+	y += 48
+
+	if len(r.Hitboxes) > 0 {
+		drawTextS(screen, "HITBOXES", vpX+8, y, 0.65, e.textMuted)
+		y += 18
+		for hi, hb := range r.Hitboxes {
+			hcol := e.textPrimary
+			if hi == se.EditingHitbox { hcol = e.accent }
+			drawTextS(screen, fmt.Sprintf("%d: %s (%.0fx%.0f)", hi, hb.Name, hb.W, hb.H),
+				vpX+12, y+float64(hi)*14, 0.6, hcol)
+		}
+	}
+
+	// Right side: viewport preview
+	viewX := vpX + sidebarW + 10
+	viewY := vpY + 10
+	viewW := vpW - sidebarW - 20
+	viewH := vpH - 60
+
+	// Checkerboard background
+	if se.ShowChecker {
+		checkSize := 8.0 * se.Zoom
+		if checkSize < 4 { checkSize = 4 }
+		for cx := viewX; cx < viewX+viewW; cx += checkSize * 2 {
+			for cy := viewY; cy < viewY+viewH; cy += checkSize * 2 {
+				fillRect(screen, cx, cy, checkSize, checkSize, color.RGBA{0x33, 0x33, 0x33, 0x66})
+				fillRect(screen, cx+checkSize, cy+checkSize, checkSize, checkSize, color.RGBA{0x33, 0x33, 0x33, 0x66})
+			}
+		}
+	}
+
+	// Draw first frame as colored rect placeholder
+	// (actual texture rendering needs Ebitengine image)
+	if r.FrameCount() > 0 {
+		frame := &r.Frames[0]
+		frameW := float64(frame.W) * se.Zoom
+		frameH := float64(frame.H) * se.Zoom
+
+		// Center in viewport
+		drawX := viewX + viewW/2 - frameW/2
+		drawY := viewY + viewH/2 - frameH/2
+
+		// Draw frame rect
+		fillRect(screen, drawX, drawY, frameW, frameH, color.RGBA{0x4a, 0x9e, 0xff, 0x88})
+		drawRectBorder(screen, drawX, drawY, frameW, frameH, e.accent, 1.5)
+
+		// Draw pivot crosshair
+		pivotScreenX := drawX + float64(frame.W)*se.Zoom*r.PivotX
+		pivotScreenY := drawY + float64(frame.H)*se.Zoom*r.PivotY
+		crossSize := 6.0 * se.Zoom
+		if crossSize < 4 { crossSize = 4 }
+		fillRect(screen, pivotScreenX-1, pivotScreenY-crossSize, 2, crossSize*2, color.RGBA{0xff, 0xff, 0x00, 0xcc})
+		fillRect(screen, pivotScreenX-crossSize, pivotScreenY-1, crossSize*2, 2, color.RGBA{0xff, 0xff, 0x00, 0xcc})
+
+		// Draw hitboxes
+		for _, hb := range r.Hitboxes {
+			hx := drawX + hb.X*se.Zoom
+			hy := drawY + hb.Y*se.Zoom
+			hw := hb.W * se.Zoom
+			hh := hb.H * se.Zoom
+			hcol := editor.GetHitboxPreviewColor(hb.Type)
+			drawRectBorder(screen, hx, hy, hw, hh, hcol, 1.5)
+			fillRect(screen, hx, hy, hw, hh, color.RGBA{hcol.R, hcol.G, hcol.B, hcol.A / 3})
+		}
+	}
+
+	// Bottom toolbar
+	toolY := vpY + vpH - 30
+	fillRect(screen, vpX+sidebarW, toolY, vpW-sidebarW, 30, e.bgPanel)
+
+	zoomText := fmt.Sprintf("Zoom: %.0f%%", se.Zoom*100)
+	drawTextS(screen, zoomText, vpX+sidebarW+12, toolY+6, 0.7, e.textMuted)
+
+	frameInfo := fmt.Sprintf("Frame: 1/%d", r.FrameCount())
+	drawTextS(screen, frameInfo, vpX+sidebarW+120, toolY+6, 0.7, e.textMuted)
+
+	// Import hint
+	drawTextS(screen, "Ctrl+I: Importar", vpX+sidebarW+250, toolY+6, 0.6, e.textFaint)
+
+	// Border
+	drawRectBorder(screen, vpX, vpY, vpW, vpH, color.RGBA{0x2d, 0x2d, 0x3d, 0xff}, 1)
 }
 
 func (app *EditorApp) Layout(outsideW, outsideH int) (int, int) { return outsideW, outsideH }

@@ -13,8 +13,10 @@ type SceneEntity struct {
 	ID       int            `json:"id"`
 	Name     string         `json:"name"`
 	Type     string         `json:"type"`
-	X, Y     float64        `json:"x"`
-	W, H     float64        `json:"w"`
+	X        float64        `json:"x"`
+	Y        float64        `json:"y"`
+	W        float64        `json:"w"`
+	H        float64        `json:"h"`
 	Rotation float64        `json:"rotation,omitempty"`
 	Color    string         `json:"color,omitempty"`
 	Visible  bool           `json:"visible"`

@@ -35,6 +35,10 @@
 - ✅ **Prefabs** — Templates reutilizáveis com deep copy
 - ✅ **Object Pool** — Pool genérico thread-safe para redução de GC
 - ✅ **Asset Manager** — Carregamento síncrono/assíncrono com ref counting
+- ✅ **Bridge Editor↔Runtime** — `core/editor/` converte cenas do editor para Node2D tree
+- ✅ **Animation Timeline** — Playback de keyframes no editor com easing visual
+- ✅ **Hot-Reload** — Watcher de arquivos `.ks` com recompilação automática
+- ✅ **Camera Gizmo** — Visualização de frustum, crosshair e handles no viewport
 - ✅ **CLI tools** — `kora-run`, `kora-build`, `kora-android`
 - ✅ **Exportação desktop** — Binário nativo para Windows, macOS e Linux
 - ✅ **Exportação mobile** — APK/AAB Android via gomobile
@@ -57,6 +61,28 @@
 │  (Gera structs Go + interface Entity)    │
 └────────────┬─────────────────────────────┘
              │ Código Go gerado
+             ▼
+┌──────────────────────────────────────────┐
+│     Editor Kora (Go + Ebitengine)        │
+│                                          │
+│  ┌────────────┐  ┌──────────────────┐    │
+│  │ SceneFile  │  │  Timeline Anim   │    │
+│  │ .kora.json │  │  playhead/tracks │    │
+│  └─────┬──────┘  └──────────────────┘    │
+│        │                                 │
+│  ┌─────▼──────────────────────────┐      │
+│  │     Bridge (core/editor/)      │      │
+│  │  SceneEntity ←→ Node2D tree    │      │
+│  │  Instantiate / Preview / Play  │      │
+│  └─────┬──────────────────────────┘      │
+│        │                                 │
+│        ▼                                 │
+│  ┌──────────────────────────────────┐    │
+│  │  Hot-Reload .ks                 │    │
+│  │  Camera Gizmo / Gizmos          │    │
+│  └──────────────────────────────────┘    │
+└────────────┬─────────────────────────────┘
+             │ Preview / Play
              ▼
 ┌──────────────────────────────────────────┐
 │     Runtime Kora (Go + Ebitengine)       │
@@ -111,6 +137,27 @@ go run cmd/kora-run/main.go examples/hello/game.ks
 
 # Ou usando o atalho do Makefile
 make run
+```
+
+### Abrir o Editor Visual
+
+```bash
+# Editor Go nativo (Ebitengine) com viewport, hierarquia, inspetor
+go run cmd/kora-editor/main.go
+
+# Carregar uma cena existente
+go run cmd/kora-editor/main.go scenes/mygame.kora.json
+```
+
+```bash
+# Atalhos do editor:
+# F1-F3: Tabs (Scene/Assets/Script)
+# F4: Timeline de animação
+# F5/F6: Painéis (Hierarquia/Inspetor)
+# F7: Hot-Reload KScript
+# F8: Play mode (preview)
+# F9: Camera gizmo
+# 1-3: Ferramentas (Select/Move/Scale)
 ```
 
 ### Compilar um binário desktop
@@ -264,6 +311,7 @@ kora/
 │   └── kscript.go            # Registro de APIs da runtime
 │
 ├── core/                     # Runtime do motor
+│   ├── editor/               # Bridge SceneFile↔Node2D, anim timeline, hot-reload
 │   ├── runner/               # Game loop, debug overlay, Config
 │   ├── render/               # Renderer, Camera, Sprite, Tilemap,
 │   │                         # TextureCache, ShaderManager, BitmapFont
